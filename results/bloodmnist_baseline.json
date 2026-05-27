@@ -1,0 +1,19 @@
+{
+  "dataset": "bloodmnist",
+  "modality": "Blood Cell Microscopy",
+  "student": "S1",
+  "task": "multi-class",
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\bloodmnist_resnet18.pth",
+  "benchmark_acc": 0.969,
+  "test_metrics": {
+    "accuracy": 0.9821689564454837,
+    "auc_roc": 0.9989163506788072,
+    "ece": 0.010744175491748323,
+    "nll": 0.07253473252058029
+  },
+  "training_time_minutes": 13.77
+}

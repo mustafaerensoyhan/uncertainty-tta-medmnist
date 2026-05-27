@@ -1,0 +1,24 @@
+# Core ML stack — versions pinned to known-working ranges
+torch>=2.1,<3.0
+torchvision>=0.16,<1.0
+
+# MedMNIST v2 — provides all 6 datasets via pip install
+medmnist>=3.0.0,<4.0.0
+
+# Metrics
+scikit-learn>=1.3
+numpy>=1.24
+
+# Visualisation (Phase 3 figures, reliability diagrams, confidence strips)
+matplotlib>=3.7
+seaborn>=0.13
+
+# Stats (Phase 4 significance testing)
+scipy>=1.11
+
+# Data handling and result tracking
+pandas>=2.0
+tqdm>=4.65
+
+# Development — optional but recommended
+pytest>=7.0
