@@ -25,7 +25,7 @@ Augmentation across 6 MedMNIST datasets.
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/<your-org>/uncertainty-tta-medmnist.git
+git clone https://github.com/mustafaerensoyhan/uncertainty-tta-medmnist.git
 cd uncertainty-tta-medmnist
 ```
 
