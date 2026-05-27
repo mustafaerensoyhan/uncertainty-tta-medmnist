@@ -1,0 +1,19 @@
+{
+  "dataset": "pathmnist",
+  "modality": "Colon Pathology (Histology)",
+  "student": "S1",
+  "task": "multi-class",
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\pathmnist_resnet18.pth",
+  "benchmark_acc": 0.881,
+  "test_metrics": {
+    "accuracy": 0.9176880222841226,
+    "auc_roc": 0.9946611015716645,
+    "ece": 0.05521945234045676,
+    "nll": 0.34234997630119324
+  },
+  "training_time_minutes": 33.81
+}
