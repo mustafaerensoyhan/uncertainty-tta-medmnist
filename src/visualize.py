@@ -78,7 +78,87 @@ def reliability_diagram(probs: np.ndarray, labels: np.ndarray,
     plt.close(fig)
 
 
-def training_curves(log: list[dict[str, Any]] | pd.DataFrame,
+def augmentation_grid(image: "np.ndarray | Any", augmentations,
+                      save_path: str | Path | None = None,
+                      title: str = "Augmentation preview") -> None:
+    """
+    Plot a [0,1] image under each augmentation in the pipeline — the Phase 2
+    Day 4-5 "test each augmentation visually" task.
+
+    Args:
+        image: a single [0,1] RGB tensor (C, H, W) or numpy array
+        augmentations: list of (fn, name) pairs (from get_augmentation_pipeline)
+        save_path: where to save the PNG
+        title: figure title
+    """
+    import torch
+
+    if not isinstance(image, torch.Tensor):
+        image = torch.as_tensor(image)
+
+    n = len(augmentations)
+    ncols = min(n, 5)
+    nrows = (n + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 2.0, nrows * 2.2))
+    axes = np.array(axes).reshape(-1)
+
+    for i, (fn, name) in enumerate(augmentations):
+        aug = fn(image).clamp(0, 1)
+        axes[i].imshow(aug.permute(1, 2, 0).numpy())
+        axes[i].set_title(name, fontsize=8)
+        axes[i].axis("off")
+    for j in range(n, len(axes)):
+        axes[j].axis("off")
+
+    fig.suptitle(title, fontsize=11, y=1.0)
+    plt.tight_layout()
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def accuracy_vs_n(df: pd.DataFrame, save_path: str | Path | None = None,
+                  title: str = "Standard TTA: Accuracy vs N views") -> None:
+    """
+    Plot accuracy (and ECE on a twin axis) against number of TTA views.
+
+    Expects a DataFrame with columns 'n_views', 'accuracy', and optionally 'ece'.
+    A horizontal dashed line marks the no-TTA baseline (n_views == 1) if present.
+    """
+    df = df.sort_values("n_views")
+    fig, ax1 = plt.subplots(figsize=(6, 4))
+
+    ax1.plot(df["n_views"], df["accuracy"] * 100, "o-", color="C0", label="Accuracy")
+    ax1.set_xlabel("Number of TTA views (N)")
+    ax1.set_ylabel("Accuracy (%)", color="C0")
+    ax1.tick_params(axis="y", labelcolor="C0")
+    ax1.set_xscale("log", base=2)
+    ax1.set_xticks(df["n_views"])
+    ax1.get_xaxis().set_major_formatter(plt.ScalarFormatter())
+
+    # Mark the no-TTA baseline if it's in the data (n_views == 1)
+    if (df["n_views"] == 1).any():
+        base_acc = df.loc[df["n_views"] == 1, "accuracy"].iloc[0] * 100
+        ax1.axhline(base_acc, ls="--", color="gray", lw=1,
+                    label=f"No-TTA baseline ({base_acc:.1f}%)")
+
+    if "ece" in df.columns:
+        ax2 = ax1.twinx()
+        ax2.plot(df["n_views"], df["ece"], "s--", color="C3", alpha=0.7, label="ECE")
+        ax2.set_ylabel("ECE", color="C3")
+        ax2.tick_params(axis="y", labelcolor="C3")
+
+    ax1.legend(loc="best", fontsize=8)
+    ax1.set_title(title)
+    plt.tight_layout()
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def training_curves(log: "list[dict[str, Any]] | pd.DataFrame",
                     save_path: str | Path | None = None,
                     title: str = "Training curves") -> None:
     """

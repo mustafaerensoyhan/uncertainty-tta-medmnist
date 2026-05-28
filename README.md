@@ -180,6 +180,58 @@ python -m scripts.train_baseline --dataset bloodmnist \
 
 ---
 
+## Phase 2 — Standard TTA (Days 4–7)
+
+Once your baseline checkpoint exists (Phase 1), run standard equal-weight TTA to
+measure how accuracy/ECE/NLL change as you add more augmented views. This
+replicates the "TTA is not better" finding.
+
+```bash
+# S1 — Mustafa
+python -m scripts.run_standard_tta --dataset pathmnist
+python -m scripts.run_standard_tta --dataset bloodmnist
+
+# S2 — Mohamed Ahmed
+python -m scripts.run_standard_tta --dataset dermamnist
+
+# S3 — Trang
+python -m scripts.run_standard_tta --dataset breastmnist
+
+# S4 — Vaidehi
+python -m scripts.run_standard_tta --dataset organamnist
+
+# S5 — Sudha
+python -m scripts.run_standard_tta --dataset pneumoniamnist
+```
+
+By default it evaluates N = 5, 10, 20, 50 views plus an N=1 no-TTA baseline.
+Override with `--n-views 5 10 20 50` if you want a different sweep.
+
+### What it does
+
+1. Loads your Phase 1 checkpoint from `checkpoints/{dataset}_resnet18.pth`
+2. For each N, generates N augmented views per test image (10 augmentation
+   types from the proposal's Section 3.3, applied on un-normalized images then
+   normalized per view), runs them through the model, and averages the softmax
+   outputs with equal weight 1/N
+3. Computes Accuracy, AUC, ECE, NLL at each N
+4. Saves `results/{dataset}_standard_tta.csv` (one row per N)
+5. Saves `figures/tta/{dataset}_accuracy_vs_n.png` (accuracy + ECE vs N)
+6. Prints a verdict: does TTA help or hurt on this dataset?
+
+### Deliverable
+
+Paste your CSV rows into **Sheet 2️⃣ Standard TTA** of the tracker, and note in
+the group chat whether TTA helped or hurt your dataset. The team needs at least
+3 of 6 datasets to show degradation to confirm the hypothesis.
+
+> **Important:** Phase 2 only adds new files (`src/tta.py`, `src/augmentations.py`,
+> `scripts/run_standard_tta.py`) and one new method in `src/data.py`. It does NOT
+> change the Phase 1 training pipeline — your existing baselines and checkpoints
+> remain valid.
+
+---
+
 ## No local GPU? Use the Kaggle notebook
 
 Open `notebooks/kaggle_baseline.ipynb` in Kaggle (Settings → Accelerator → GPU T4)
@@ -276,9 +328,9 @@ uncertainty-tta-medmnist/
 
 | Phase | Days | Deliverable | Code lives in |
 |---|---|---|---|
-| 1 — Baselines | 1–3 | 6 trained checkpoints + Sheet 1 filled | `scripts/train_baseline.py` (**current**) |
-| 2 — Standard TTA | 4–7 | `utils/tta.py`, Sheet 2 filled | (to be written) |
-| 3 — Weighted TTA | 8–11 | `utils/fusion.py`, Sheet 3 filled, 4 confidence strips | (to be written) |
+| 1 — Baselines | 1–3 | 6 trained checkpoints + Sheet 1 filled | `scripts/train_baseline.py` |
+| 2 — Standard TTA | 4–7 | `src/tta.py` + `src/augmentations.py`, Sheet 2 filled | `scripts/run_standard_tta.py` (**current**) |
+| 3 — Weighted TTA | 8–11 | weighted fusion in `src/tta.py`, Sheet 3 filled, 4 confidence strips | (to be written) |
 | 4 — Ablations | 12–14 | Sheets 4–7 + reliability diagrams | (to be written) |
 | 5 — Paper | 15–17 | Manuscript | — |
 
