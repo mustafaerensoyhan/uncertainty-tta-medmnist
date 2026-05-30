@@ -29,7 +29,7 @@ env/
 data/
 checkpoints/*.pth
 checkpoints/*.pt
-results/*log.csv
+results/*.csv
 !results/.gitkeep
 !checkpoints/.gitkeep
 figures/*.png
@@ -45,3 +45,6 @@ wandb/
 # Local config overrides
 .env
 local_settings.py
+
+# Per-image prediction arrays (addendum Addition 5) — large, push to shared Drive
+predictions/

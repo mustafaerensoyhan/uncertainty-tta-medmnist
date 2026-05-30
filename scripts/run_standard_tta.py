@@ -34,6 +34,7 @@ from src.model import build_resnet18
 from src.augmentations import get_augmentation_pipeline
 from src.tta import tta_per_view_probs, fuse_equal_weight
 from src.metrics import compute_all_metrics
+from src.perf import measure_ms_per_image
 from src.visualize import accuracy_vs_n
 from src.utils import set_seed, get_device, load_checkpoint
 
@@ -51,6 +52,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--checkpoints-dir", default="./checkpoints")
     p.add_argument("--results-dir", default="./results")
     p.add_argument("--figures-dir", default="./figures")
+    p.add_argument("--no-time", action="store_true",
+                   help="Skip inference-time measurement (leaves Inf.ms blank).")
     p.add_argument("--cpu", action="store_true")
     return p.parse_args()
 
@@ -98,6 +101,13 @@ def main() -> int:
     base_probs, labels = tta_per_view_probs(model, test_loader, device, base_aug)
     base_fused = fuse_equal_weight(base_probs)
     base_metrics = compute_all_metrics(base_fused, labels, task=cfg.task)
+    n_test = int(labels.shape[0])
+    if not args.no_time:
+        base_metrics["inf_ms"] = measure_ms_per_image(
+            lambda: tta_per_view_probs(model, test_loader, device, base_aug),
+            n_test, device)
+    else:
+        base_metrics["inf_ms"] = None
     rows.append({"dataset": cfg.key, "n_views": 1, **base_metrics})
     print(f"  baseline acc={base_metrics['accuracy']*100:.2f}%  "
           f"ece={base_metrics['ece']:.4f}\n")
@@ -114,12 +124,21 @@ def main() -> int:
         metrics = compute_all_metrics(fused, labels, task=cfg.task)
         elapsed = time.perf_counter() - start
 
+        # Proper per-image latency for Sheet 2 (warmup + cuda.synchronize).
+        if not args.no_time:
+            metrics["inf_ms"] = measure_ms_per_image(
+                lambda: tta_per_view_probs(model, test_loader, device, augs),
+                n_test, device)
+        else:
+            metrics["inf_ms"] = None
+
         delta_acc = (metrics["accuracy"] - base_metrics["accuracy"]) * 100
         arrow = "↓ HURTS" if delta_acc < 0 else "↑ helps"
+        infms = f" | {metrics['inf_ms']:.2f} ms/img" if metrics["inf_ms"] is not None else ""
         print(f"  N={n:2d} | acc={metrics['accuracy']*100:.2f}% "
               f"(Δ {delta_acc:+.2f}pp {arrow}) | "
               f"ece={metrics['ece']:.4f} | nll={metrics['nll']:.4f} | "
-              f"{elapsed:.1f}s\n")
+              f"{elapsed:.1f}s{infms}\n")
         rows.append({"dataset": cfg.key, "n_views": n, **metrics})
 
     # Save results CSV

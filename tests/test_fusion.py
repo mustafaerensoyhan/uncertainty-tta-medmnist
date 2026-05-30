@@ -21,8 +21,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.tta import (fuse, fuse_entropy, fuse_maxprob, fuse_variance,
-                     fuse_equal_weight, entropy_weights, _normalize_weights,
-                     FUSION_FNS)
+                     fuse_variance_inv, fuse_equal_weight, entropy_weights,
+                     _normalize_weights, FUSION_FNS)
 
 
 # ── Shapes & simplex preservation (all strategies) ─────────────────────────
@@ -109,22 +109,41 @@ def test_maxprob_favours_confident_view():
 
 # ── Variance weighting (literal proposal semantics) ────────────────────────
 
-def test_variance_near_zero_variance_view_gets_highest_weight():
-    # Flat distribution => ~zero class-variance; peaked => high class-variance.
-    flat = [0.25, 0.25, 0.25, 0.25]                          # var ~ 0
-    peaked = [0.97, 0.01, 0.01, 0.01]                        # var high
+# ── Variance weighting: `variance` is confidence-aligned (Hafez-approved) ──
+
+def test_variance_upweights_confident_peaked_view():
+    # Confidence-aligned: peaked (high class-variance) view should dominate.
+    peaked = [0.97, 0.01, 0.01, 0.01]                        # high var
+    flat = [0.25, 0.25, 0.25, 0.25]                          # ~zero var
+    per_view = np.array([[peaked], [flat]])                  # (N=2, S=1, C=4)
+    w = _normalize_weights(per_view.var(axis=2) + 1e-12)[:, 0]
+    assert w[0] > w[1], "peaked (confident) view must get more weight"
+    fused = fuse_variance(per_view)[0]
+    assert fused.argmax() == 0
+    assert np.allclose(fuse_variance(per_view).sum(axis=1), 1.0)
+
+
+def test_variance_inv_upweights_flat_view_literal_ablation():
+    # Literal proposal formula: near-zero-variance (flat) view gets highest weight.
+    flat = [0.25, 0.25, 0.25, 0.25]                          # ~zero var
+    peaked = [0.97, 0.01, 0.01, 0.01]                        # high var
     per_view = np.array([[flat], [peaked]])                  # (N=2, S=1, C=4)
-    # Reconstruct the (normalized) weights the strategy uses.
-    var = per_view.var(axis=2)
-    w = _normalize_weights(1.0 / (var + 1e-6))[:, 0]
-    assert w[0] > w[1], ("per the proposal's formula+test, the near-zero-variance "
-                         "(flat) view must receive the highest weight")
-    # And fuse_variance must run and stay on the simplex.
-    fused = fuse_variance(per_view)
-    assert np.allclose(fused.sum(axis=1), 1.0)
+    w = _normalize_weights(1.0 / (per_view.var(axis=2) + 1e-6))[:, 0]
+    assert w[0] > w[1], "literal 1/(var+eps) must upweight the flat view"
+    assert np.allclose(fuse_variance_inv(per_view).sum(axis=1), 1.0)
+
+
+def test_variance_and_inv_are_opposite_directions():
+    peaked = [0.9, 0.05, 0.05]
+    flat = [0.34, 0.33, 0.33]
+    per_view = np.array([[peaked], [flat]])
+    fv = fuse_variance(per_view)[0]            # leans peaked (class 0)
+    fvi = fuse_variance_inv(per_view)[0]       # leans flat
+    assert fv[0] > fvi[0], "variance and variance_inv should pull opposite ways"
 
 
 def test_variance_uniform_when_all_equal_variance():
     v = [0.7, 0.2, 0.1]
     per_view = np.array([[v], [v], [v]])                     # identical views
     assert np.allclose(fuse_variance(per_view), fuse_equal_weight(per_view))
+    assert np.allclose(fuse_variance_inv(per_view), fuse_equal_weight(per_view))

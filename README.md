@@ -232,95 +232,87 @@ the group chat whether TTA helped or hurt your dataset. The team needs at least
 
 ---
 
-## Phase 3 — Uncertainty-Weighted TTA (Days 8–11)
+## Phase 3 — Uncertainty-Weighted TTA + addendum additions (Days 8–11)
 
-The core of the project. Phase 3 adds four uncertainty-weighted fusion
-strategies alongside the equal-weight baseline and runs all five across every
-dataset to build the main results matrix (Sheet 3 / `full_matrix.csv`).
+The core phase. Builds the main results matrix (Sheet 3) across **8 strategies**,
+adds temperature scaling, inference-time measurement, per-image prediction
+arrays, and the 3-image confidence strips. Read `docs/Addendum_Phase3_4_Additions.pdf`
+alongside the main proposal — its additions are **not optional**.
 
-The five strategies (proposal §3.2):
+The eight strategies (proposal §3.2 + addendum Addition 2):
 
-| Strategy | Weight | What it does |
+| Strategy | Weight / method | Notes |
 |---|---|---|
-| `baseline` | w = 1/N | Equal weight — the Phase 2 method, kept as reference |
-| `maxprob` | w_i = max(p_i) | Confident (high-peak) views dominate |
-| `entropy` | w_i = exp(−H(p_i)) | Low-entropy (certain) views dominate |
-| `variance` | w_i = 1/(var(p_i)+ε) | See the semantics note below |
-| `mc_dropout` | mean of T dropout passes | Epistemic-uncertainty proxy (no augmentation) |
+| `baseline` | w = 1/N | Equal weight (the Phase 2 method) |
+| `maxprob` | w_i = max(p_i) | Confident views dominate |
+| `entropy` | w_i = exp(−H(p_i)) | Low-entropy views dominate — usually the winner |
+| `variance` | w_i = var(p_i) | **Confidence-aligned** (sharp views up) — supervisor-approved direction |
+| `variance_inv` | w_i = 1/(var(p_i)+ε) | Literal proposal formula — reported as a **negative-finding ablation** |
+| `mc_dropout` | mean of T dropout passes | Epistemic proxy (no augmentation) |
+| `ts_only` | softmax(logits/T) | Temperature scaling, single pass, no TTA |
+| `ts_entropy` | entropy TTA with logits/T | TS + entropy — best calibration |
 
-Run all five on your dataset(s) with one command from the repo root:
+Run all eight on your dataset(s) with one command:
 
 ```bash
 # S1 — Mustafa
 python -m scripts.run_weighted_tta --dataset pathmnist
 python -m scripts.run_weighted_tta --dataset bloodmnist
-
-# S2 — Mohamed Ahmed
-python -m scripts.run_weighted_tta --dataset dermamnist
-
-# S3 — Trang
-python -m scripts.run_weighted_tta --dataset breastmnist
-
-# S4 — Vaidehi
-python -m scripts.run_weighted_tta --dataset organamnist
-
-# S5 — Sudha
-python -m scripts.run_weighted_tta --dataset pneumoniamnist
+# S2 dermamnist · S3 breastmnist · S4 organamnist · S5 pneumoniamnist
 ```
 
-Defaults: `--n-views 10` for the four fusion strategies, `--mc-T 20 --mc-p 0.2`
-for MC Dropout (all per the proposal). It loads your Phase 1 checkpoint, computes
-the per-view probabilities **once**, fuses them four ways, runs MC Dropout
-separately, and writes one row per strategy to
-`results/{dataset}_weighted_tta.csv` (5 rows). Paste those into **Sheet 3️⃣
-Weighted TTA**.
+For each dataset this:
+1. **Fits temperature T** on the validation split (LBFGS on NLL) — reported in the CSV.
+2. Computes per-view **logits** once and reuses them for every augmentation-based
+   strategy (plain and temperature-scaled).
+3. Runs MC Dropout and TS-only on their own passes.
+4. **Measures inference time** (ms/image) per strategy — warmup + `torch.cuda.synchronize()`
+   so GPU numbers are real (Addition 1).
+5. Writes `results/{dataset}_weighted_tta.csv` — one row per strategy with
+   accuracy, AUC (macro for multiclass / binary for the two binary sets), ECE, NLL,
+   **inf_ms**, and the fitted **temperature**.
+6. Saves **per-image prediction arrays** (Addition 5) to `predictions/`
+   (`{dataset}_labels.npy`, `{dataset}_{strategy}_preds.npy`,
+   `{dataset}_{strategy}_probs.npy`) — needed for the Phase 4 McNemar/Wilcoxon
+   tests. `predictions/` is **gitignored**; push it to the shared Drive, not git.
+
+`--no-time` skips the latency pass (faster debug runs). `--mc-T`, `--mc-p`,
+`--n-views` tune the rest.
+
+Standard TTA (`run_standard_tta.py`) now also fills **inf_ms** per N, so Sheet 2's
+Inference-time column gets populated on the same pass.
 
 ### Building the full matrix
 
-Each student commits only their own `{dataset}_weighted_tta.csv` (branch + PR).
-Once they're all merged, S1 stitches them into the single matrix the paper
-needs — kept as a separate step so per-dataset runs never collide on one shared
-file in git (the conflict we hit in Phase 2):
-
 ```bash
-python -m scripts.build_full_matrix      # -> results/full_matrix.csv
+python -m scripts.build_full_matrix      # merges results/{dataset}_weighted_tta.csv
 ```
 
-### Figure 1 — Augmentation Confidence Strips (VMV visual contribution, §3.5)
+Each student commits only their own `{dataset}_weighted_tta.csv` (branch + PR);
+S1 runs the merge on `main`.
+
+### Figure 1 — Augmentation Confidence Strips (×3 images, Addition 3)
 
 ```bash
-python -m scripts.make_confidence_strips                       # all 4 modalities
-python -m scripts.make_confidence_strips --datasets bloodmnist # just one
+python -m scripts.make_confidence_strips                  # 4 modalities x 3 images = 12 strips
+python -m scripts.make_confidence_strips --select spread  # single hero strip per dataset
 ```
 
-Writes `figures/strip/{dataset}_strip.pdf` for PathMNIST, DermaMNIST,
-PneumoniaMNIST, and BloodMNIST — the four strips that stack into Figure 1. Each
-strip shows N augmented views with a coloured bar under each encoding its
-entropy weight (dark/tall = trusted, pale/short = rejected). With the default
-`--n-views 10` (which includes the original view) the strip shows 9 of the 10
-base augmentations; pass `--include-all-augs` to show all 10 types instead.
+Default selection is **random, seeded (0,1,2), correctly-classified** — three
+images per modality so the pattern is demonstrably stable, not cherry-picked
+(addendum). Output: `figures/strip/{dataset}_sample{1,2,3}.pdf`, arranged 4×3 in
+the paper. The `spread` mode (picks the most illustrative single image by weight
+variance) is kept for a one-off hero figure.
 
-### ⚠️ Variance-weighting semantics — needs a supervisor decision
+### Variance direction (resolved)
 
-The proposal's variance formula `w_i = 1/(var(p_i)+ε)` is implemented **literally**,
-and its specified unit test ("near-zero-variance view gets the highest weight")
-passes. But note: `var(p_i)` is the variance of the softmax vector *across
-classes*, and a flat/uncertain distribution has near-zero class-variance while a
-confident peaked one has high class-variance. So as written, this strategy
-upweights the **least** confident views — the opposite of the "confident views
-dominate" intuition in the same proposal table. It's implemented as specified so
-the code and the published methodology agree and the experiment measures the
-defined strategy; if the team wants "confident dominates" semantics, it's a
-one-line flip in `fuse_variance` (`weights = var + eps`) but should be a
-deliberate decision by @MohamedHafez. Flagged in the code docstring too.
-
-> **Important:** Phase 3 only *adds* files (`src/mc_dropout.py`, `src/evaluate.py`,
-> new functions in `src/tta.py` and `src/visualize.py`, and three new scripts).
-> It does not modify the Phase 1/2 pipeline — existing baselines, checkpoints,
-> and standard-TTA results stay valid. `tta_predict` still defaults to
-> equal-weight, so nothing in Phase 2 changes behaviour.
-
----
+The proposal's variance *formula* (`1/(var+ε)`) contradicts its *intuition*
+("confident views dominate"). Per supervisor decision (M. Hafez), the headline
+`variance` strategy is the **confidence-aligned** `w = var` (sharp views up), and
+the literal `1/(var+ε)` is shipped as `variance_inv` and reported as the
+"naive variance weighting is unstable" negative finding. ECE uses **10 bins**
+everywhere (proposal §3.4) — generate all official numbers through
+`run_weighted_tta` so every student's row is computed identically.
 
 ## No local GPU? Use the Kaggle notebook
 
@@ -399,6 +391,8 @@ uncertainty-tta-medmnist/
 │   ├── augmentations.py   # 10 TTA augmentation types (§3.3)
 │   ├── tta.py             # per-view probs + fusion strategies (equal/maxprob/entropy/variance)
 │   ├── mc_dropout.py      # MC Dropout baseline (forward-hook dropout, no retrain)
+│   ├── temperature.py     # Temperature scaling: fit T on val, ts_only/ts_entropy
+│   ├── perf.py            # Inference-time measurement (warmup + cuda.synchronize)
 │   ├── evaluate.py        # tta_evaluate() + run_all_strategies() across all 5
 │   ├── train.py           # Training & evaluation loops
 │   ├── visualize.py       # reliability / curves / aug grid / confidence strip
@@ -413,12 +407,14 @@ uncertainty-tta-medmnist/
 │   ├── test_metrics.py    # metrics unit tests
 │   ├── test_tta.py        # augmentation + equal-weight fusion tests
 │   ├── test_fusion.py     # weighted fusion strategy tests (Phase 3)
-│   └── test_mc_dropout.py # MC Dropout tests (Phase 3)
+│   ├── test_mc_dropout.py # MC Dropout tests (Phase 3)
+│   └── test_temperature.py # temperature scaling tests (Phase 3)
 ├── notebooks/
 │   └── kaggle_baseline.ipynb  # Kaggle/Colab runner (Phases 1–3)
 ├── docs/                  # Proposal PDF + results tracker XLSX
 ├── checkpoints/           # gitignored — saved .pth files (~45 MB each)
 ├── results/               # commit JSON/CSV metrics here (small, in-repo)
+├── predictions/           # gitignored — per-image .npy arrays (push to Drive)
 ├── figures/               # TTA curves, reliability diagrams, strips
 ├── requirements.txt
 └── README.md              # this file
@@ -432,8 +428,8 @@ uncertainty-tta-medmnist/
 |---|---|---|---|
 | 1 — Baselines | 1–3 | 6 trained checkpoints + Sheet 1 filled | `scripts/train_baseline.py` |
 | 2 — Standard TTA | 4–7 | `src/tta.py` + `src/augmentations.py`, Sheet 2 filled | `scripts/run_standard_tta.py` |
-| 3 — Weighted TTA | 8–11 | weighted fusion + MC Dropout, Sheet 3 + `full_matrix.csv`, 4 confidence strips | `scripts/run_weighted_tta.py`, `scripts/make_confidence_strips.py` (**current**) |
-| 4 — Ablations | 12–14 | Sheets 4–7 + reliability diagrams | (to be written) |
+| 3 — Weighted TTA (+addendum) | 8–11 | 8 strategies + temperature scaling + inference time + per-image preds, Sheet 3 + `full_matrix.csv`, 12 confidence strips | `scripts/run_weighted_tta.py`, `scripts/make_confidence_strips.py` (**current**) |
+| 4 — Ablations + stats | 12–14 | reliability diagrams, McNemar/Wilcoxon, seeds (addendum Addition 4) | (to be written) |
 | 5 — Paper | 15–17 | Manuscript | — |
 
 Each phase adds new modules under `src/` and `scripts/`. Existing files are

@@ -33,55 +33,69 @@ from .data import normalize_imagenet
 
 
 @torch.no_grad()
-def tta_per_view_probs(model: nn.Module, loader: DataLoader, device: torch.device,
-                       augmentations: List[Tuple[AugFn, str]]
-                       ) -> Tuple[np.ndarray, np.ndarray]:
+def tta_per_view_logits(model: nn.Module, loader: DataLoader, device: torch.device,
+                        augmentations: List[Tuple[AugFn, str]]
+                        ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Run TTA over a test loader and return per-view softmax probabilities.
+    Run TTA over a test loader and return per-view raw LOGITS (pre-softmax).
 
-    Args:
-        model: trained classifier (eval mode is set internally)
-        loader: yields UN-normalized [0, 1] RGB image batches + labels
-        device: torch device
-        augmentations: list of (fn, name) pairs of length N (from
-                       augmentations.get_augmentation_pipeline)
+    Returning logits (not probabilities) lets a caller derive both the plain
+    softmax and a temperature-scaled softmax (logits / T) from a single set of
+    forward passes — needed for the TS + Entropy TTA column (addendum Addition 2)
+    without paying for the augmented forward passes twice.
 
     Returns:
-        per_view_probs: float array of shape (N, num_samples, num_classes)
-        labels: int array of shape (num_samples,)
-
-    Memory note: this materializes (N × num_samples × C) floats. For the
-    MedMNIST test splits (a few thousand images, <=11 classes) that's small
-    even at N=50. If a future dataset is much larger, stream the fusion instead.
+        per_view_logits: (N, num_samples, num_classes)
+        labels: (num_samples,)
     """
     model.eval()
     n_views = len(augmentations)
-
-    per_view_batches: List[np.ndarray] = []  # each: (N, B, C)
+    per_view_batches: List[np.ndarray] = []
     label_batches: List[np.ndarray] = []
 
     for images, labels in loader:
         images = images.to(device, non_blocking=True)  # (B, 3, H, W) in [0,1]
-        B = images.shape[0]
-
-        view_probs = []  # list of (B, C) per view
+        view_logits = []
         for aug_fn, _name in augmentations:
-            # Apply augmentation per-image (augs are defined on single images),
-            # then stack back into a batch.
             aug_imgs = torch.stack([aug_fn(img) for img in images], dim=0)
             aug_imgs = normalize_imagenet(aug_imgs)
             logits = model(aug_imgs)
-            probs = F.softmax(logits, dim=1)  # (B, C)
-            view_probs.append(probs.cpu().numpy())
-
-        per_view_batches.append(np.stack(view_probs, axis=0))  # (N, B, C)
+            view_logits.append(logits.cpu().numpy())
+        per_view_batches.append(np.stack(view_logits, axis=0))  # (N, B, C)
         label_batches.append(labels.numpy().ravel())
 
-    # Concatenate along the sample axis
-    per_view_probs = np.concatenate(per_view_batches, axis=1)  # (N, num_samples, C)
+    per_view_logits = np.concatenate(per_view_batches, axis=1)  # (N, num_samples, C)
     labels = np.concatenate(label_batches, axis=0)
-    assert per_view_probs.shape[0] == n_views
-    return per_view_probs, labels
+    assert per_view_logits.shape[0] == n_views
+    return per_view_logits, labels
+
+
+def softmax_np(logits: np.ndarray, temperature: float = 1.0,
+               axis: int = -1) -> np.ndarray:
+    """Numerically-stable softmax over `axis`, with optional temperature."""
+    z = logits / float(temperature)
+    z = z - z.max(axis=axis, keepdims=True)
+    e = np.exp(z)
+    return e / e.sum(axis=axis, keepdims=True)
+
+
+def tta_per_view_probs(model: nn.Module, loader: DataLoader, device: torch.device,
+                       augmentations: List[Tuple[AugFn, str]],
+                       temperature: float = 1.0
+                       ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Run TTA over a test loader and return per-view softmax probabilities.
+
+    Thin wrapper over tta_per_view_logits + softmax. Pass temperature > 1 to get
+    temperature-scaled probabilities (used by the TS + Entropy column). Default
+    temperature=1.0 reproduces the Phase 2 behaviour exactly.
+
+    Returns:
+        per_view_probs: (N, num_samples, num_classes)
+        labels: (num_samples,)
+    """
+    per_view_logits, labels = tta_per_view_logits(model, loader, device, augmentations)
+    return softmax_np(per_view_logits, temperature=temperature, axis=2), labels
 
 
 # ── Fusion strategies ──────────────────────────────────────────────────────
@@ -162,26 +176,36 @@ def entropy_weights(per_view_probs: np.ndarray, eps: float = 1e-12) -> np.ndarra
     return _normalize_weights(np.exp(-entropy))
 
 
-def fuse_variance(per_view_probs: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+def fuse_variance(per_view_probs: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     """
-    Predictive-variance weighting: w_i = 1 / (var(p_i) + ε) (proposal §3.2).
+    Predictive-variance weighting (confidence-aligned): w_i = var(p_i).
 
-    var(p_i) is the variance of the per-view probability VECTOR across the class
-    dimension — the only per-view variance available in single-pass TTA.
+    var(p_i) is the variance of the per-view probability vector across classes.
+    A confident, peaked prediction has HIGH class-variance; a flat/uncertain one
+    has LOW class-variance. So weighting by var lets the sharp (confident) views
+    dominate — matching the proposal's stated intuition ("confident views
+    dominate").
 
-    ⚠️ SEMANTICS CAVEAT (flagged for supervisor): the proposal's formula and its
-    specified unit test ("a near-zero-variance view gets the highest weight")
-    together upweight FLAT (low class-variance) softmax vectors. But a flat
-    softmax is the *uncertain* one — a confident, peaked prediction has HIGH
-    class-variance. So as literally written this strategy upweights the least
-    confident views, opposite to the "confident views dominate" intuition in the
-    same proposal table. We implement it literally so the published methodology
-    and the code agree and the experiment measures the strategy as defined. If
-    the intended semantics are "stable/confident views dominate," flip to
-    `weights = var + eps` — a one-line change, but a deliberate supervisor
-    decision, not a silent edit.
+    NOTE: this is the OPPOSITE direction from the proposal's literal formula
+    w_i = 1/(var+ε). The literal version (which upweights uncertain views and
+    empirically hurts) is kept as `fuse_variance_inv` and reported as an
+    ablation / negative finding. Supervisor (M. Hafez) approved making the
+    confidence-aligned version the headline `variance` strategy.
     """
-    var = per_view_probs.var(axis=2)                         # (N, S)
+    weights = per_view_probs.var(axis=2) + eps                # (N, S)
+    return _weighted_average(per_view_probs, weights)
+
+
+def fuse_variance_inv(per_view_probs: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+    """
+    Literal proposal formula (ablation / negative finding): w_i = 1/(var(p_i)+ε).
+
+    Kept exactly as written in proposal §3.2. Because var is taken across the
+    class dimension, this upweights FLAT (uncertain) views and empirically
+    degrades calibration/accuracy — reported as the "naive variance weighting is
+    unstable" result (addendum, Key Message 3). Not the headline `variance`.
+    """
+    var = per_view_probs.var(axis=2)                          # (N, S)
     return _weighted_average(per_view_probs, 1.0 / (var + eps))
 
 
@@ -193,6 +217,7 @@ FUSION_FNS = {
     "maxprob": fuse_maxprob,
     "entropy": fuse_entropy,
     "variance": fuse_variance,
+    "variance_inv": fuse_variance_inv,
 }
 
 # Human-readable labels aligned with the tracker's Sheet 3 column headers.
@@ -200,8 +225,11 @@ STRATEGY_LABELS = {
     "baseline": "Baseline TTA (w=1/N)",
     "maxprob": "Max-Prob Weight (w=max p_i)",
     "entropy": "Entropy Weight (w=exp(-H))",
-    "variance": "Variance Weight (w=1/(var+e))",
+    "variance": "Variance Weight (w=var, sharp up)",
+    "variance_inv": "Variance Inv (w=1/(var+e), ablation)",
     "mc_dropout": "MC Dropout (T stochastic passes)",
+    "ts_only": "TS Only (softmax(logits/T))",
+    "ts_entropy": "TS + Entropy TTA",
 }
 
 
