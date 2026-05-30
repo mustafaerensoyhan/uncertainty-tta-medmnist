@@ -304,6 +304,21 @@ images per modality so the pattern is demonstrably stable, not cherry-picked
 the paper. The `spread` mode (picks the most illustrative single image by weight
 variance) is kept for a one-off hero figure.
 
+### Reconciling a stale baseline JSON (no retrain)
+
+If a `results/{dataset}_baseline.json` no longer matches the checkpoint on disk
+(e.g. a better retrain replaced the .pth but the JSON wasn't refreshed),
+regenerate it from the existing checkpoint — no retraining:
+
+```bash
+python -m scripts.eval_checkpoint --dataset pathmnist --compare   # preview old vs new
+python -m scripts.eval_checkpoint --dataset pathmnist             # write it
+python -m scripts.eval_checkpoint --all --compare                 # audit all 6
+```
+
+This runs the same no-TTA test evaluation Phase 1 used, preserves the training
+metadata, and refreshes `test_metrics` + the reliability diagram.
+
 ### Variance direction (resolved)
 
 The proposal's variance *formula* (`1/(var+ε)`) contradicts its *intuition*
@@ -399,9 +414,10 @@ uncertainty-tta-medmnist/
 │   └── utils.py           # Seeding, device, checkpoint I/O
 ├── scripts/
 │   ├── train_baseline.py       # ← Phase 1
-│   ├── run_standard_tta.py     # ← Phase 2
-│   ├── run_weighted_tta.py     # ← Phase 3: all 5 strategies, one dataset
-│   ├── make_confidence_strips.py  # ← Phase 3: Figure 1 strips
+│   ├── run_standard_tta.py     # ← Phase 2 (+ inf_ms for Sheet 2)
+│   ├── run_weighted_tta.py     # ← Phase 3: 8 strategies + TS + inf_ms + per-image preds
+│   ├── make_confidence_strips.py  # ← Phase 3: Figure 1 strips (×3 images/modality)
+│   ├── eval_checkpoint.py      # ← reconcile baseline JSON from a checkpoint (no retrain)
 │   └── build_full_matrix.py    # ← Phase 3: merge per-dataset CSVs -> full_matrix.csv
 ├── tests/
 │   ├── test_metrics.py    # metrics unit tests
