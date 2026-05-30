@@ -12,6 +12,37 @@ For teammates running their assigned baseline on Kaggle's free GPU instead of lo
 
 ---
 
+## Recommended method — attach the repo as a Kaggle Dataset (S2's approach)
+
+The fastest, most reliable way to run on Kaggle, contributed by **S2 (Mohamed
+Abdel Sattar)**. You upload the repo once as a private Kaggle Dataset and attach
+it to any notebook — no re-uploading a zip every session, and it works fine with
+the private GitHub repo.
+
+1. Download the repo zip from GitHub (green **`<> Code`** → **Download ZIP**) and
+   unzip it locally so you have the `uncertainty-tta-medmnist-main` folder.
+2. On Kaggle, go to **Datasets → New Dataset**, upload that folder (keep the
+   folder name `uncertainty-tta-medmnist-main`), set it **Private**, and create it.
+3. Open `notebooks/kaggle_baseline.ipynb` on Kaggle (**File → Import Notebook**),
+   then in the right sidebar click **Add Input** and attach the dataset you just
+   created. Enable the **GPU T4** accelerator (Settings → Accelerator).
+4. Set `DATASET` in the CONFIG cell to your assigned dataset and **Run All**.
+
+The notebook's setup cell locates the repo under `/kaggle/input` automatically
+(via a recursive search for the `uncertainty-tta-medmnist-main` folder), copies
+it into `/kaggle/working`, adds it to `sys.path`, and clears any cached `src`
+modules so edits take effect without restarting the kernel. When it finishes,
+**Section 15** zips `checkpoints/ results/ figures/` into
+`/kaggle/working/tta_outputs.zip` — download that from the output panel.
+
+> If the setup cell raises `FileNotFoundError`, you didn't attach the dataset
+> (step 3) or its folder isn't named `uncertainty-tta-medmnist-main`.
+
+The step-by-step below (zip upload + manual extraction) still works and is kept
+as an alternative, but the Kaggle Dataset method above is preferred.
+
+---
+
 ## Step 1 — Get the repo onto your machine
 
 You need a local copy of the repo before you start. Two ways — pick whichever:
