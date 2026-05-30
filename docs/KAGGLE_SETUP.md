@@ -1,4 +1,4 @@
-# Kaggle Setup Guide — Baseline Training (Phase 1)
+# Kaggle Setup Guide — Baseline Training + TTA (Phases 1–3)
 
 For teammates running their assigned baseline on Kaggle's free GPU instead of locally. Total time from zero to results: **~15 minutes**, most of which is the training itself running unattended.
 
@@ -244,6 +244,38 @@ git push -u origin s2-dermamnist-baseline
 Then on GitHub, click **Compare & pull request**, add a one-line description (mention your test accuracy and whether it passed the ±2% benchmark), click **Create pull request**. Mustafa will review and merge.
 
 **If you don't have a local git setup**: send Mustafa your `.json` and `.csv` files via the team chat — he'll push them on your behalf for the first time. Set up local git properly before Phase 2 starts.
+
+---
+
+## Running Phase 2 and Phase 3 in the same notebook
+
+The notebook continues past the Phase 1 baseline into the TTA phases — same
+`DATASET` config, no extra setup. After your baseline cells finish, just keep
+running the cells top to bottom:
+
+- **Sections 9–11 (Phase 2 — Standard TTA):** runs equal-weight TTA at
+  N=5,10,20,50 and shows the accuracy-vs-N plot. Writes
+  `results/{DATASET}_standard_tta.csv`. → paste into **Sheet 2️⃣**.
+- **Sections 12–13 (Phase 3 — Weighted TTA):** runs all five strategies
+  (baseline, max-prob, entropy, variance, MC Dropout) and prints the five-row
+  table. Writes `results/{DATASET}_weighted_tta.csv`. → paste into **Sheet 3️⃣**.
+- **Section 14 (Figure 1 strip):** for `pathmnist`, `dermamnist`,
+  `pneumoniamnist`, or `bloodmnist` only, generates
+  `figures/strip/{DATASET}_strip.pdf`. Other datasets skip this automatically.
+- **Section 15 (Download):** the Colab download cell now includes the Phase 2
+  and Phase 3 outputs too.
+
+All TTA phases reuse your Phase 1 checkpoint at
+`checkpoints/{DATASET}_resnet18.pth` — if you restarted the Kaggle session and
+lost it, re-run the training cell (or upload the checkpoint from the shared
+Drive) before running the TTA sections. None of this needs a GPU reconfigure;
+TTA inference is much faster than training.
+
+**Submitting Phase 3:** commit your `results/{DATASET}_weighted_tta.csv` via the
+branch + PR workflow (same as Phase 1). Do **not** commit a shared
+`full_matrix.csv` — S1 builds that on `main` with
+`python -m scripts.build_full_matrix` after everyone's per-dataset CSV is merged,
+so your runs never collide on one file.
 
 ---
 

@@ -232,6 +232,96 @@ the group chat whether TTA helped or hurt your dataset. The team needs at least
 
 ---
 
+## Phase 3 — Uncertainty-Weighted TTA (Days 8–11)
+
+The core of the project. Phase 3 adds four uncertainty-weighted fusion
+strategies alongside the equal-weight baseline and runs all five across every
+dataset to build the main results matrix (Sheet 3 / `full_matrix.csv`).
+
+The five strategies (proposal §3.2):
+
+| Strategy | Weight | What it does |
+|---|---|---|
+| `baseline` | w = 1/N | Equal weight — the Phase 2 method, kept as reference |
+| `maxprob` | w_i = max(p_i) | Confident (high-peak) views dominate |
+| `entropy` | w_i = exp(−H(p_i)) | Low-entropy (certain) views dominate |
+| `variance` | w_i = 1/(var(p_i)+ε) | See the semantics note below |
+| `mc_dropout` | mean of T dropout passes | Epistemic-uncertainty proxy (no augmentation) |
+
+Run all five on your dataset(s) with one command from the repo root:
+
+```bash
+# S1 — Mustafa
+python -m scripts.run_weighted_tta --dataset pathmnist
+python -m scripts.run_weighted_tta --dataset bloodmnist
+
+# S2 — Mohamed Ahmed
+python -m scripts.run_weighted_tta --dataset dermamnist
+
+# S3 — Trang
+python -m scripts.run_weighted_tta --dataset breastmnist
+
+# S4 — Vaidehi
+python -m scripts.run_weighted_tta --dataset organamnist
+
+# S5 — Sudha
+python -m scripts.run_weighted_tta --dataset pneumoniamnist
+```
+
+Defaults: `--n-views 10` for the four fusion strategies, `--mc-T 20 --mc-p 0.2`
+for MC Dropout (all per the proposal). It loads your Phase 1 checkpoint, computes
+the per-view probabilities **once**, fuses them four ways, runs MC Dropout
+separately, and writes one row per strategy to
+`results/{dataset}_weighted_tta.csv` (5 rows). Paste those into **Sheet 3️⃣
+Weighted TTA**.
+
+### Building the full matrix
+
+Each student commits only their own `{dataset}_weighted_tta.csv` (branch + PR).
+Once they're all merged, S1 stitches them into the single matrix the paper
+needs — kept as a separate step so per-dataset runs never collide on one shared
+file in git (the conflict we hit in Phase 2):
+
+```bash
+python -m scripts.build_full_matrix      # -> results/full_matrix.csv
+```
+
+### Figure 1 — Augmentation Confidence Strips (VMV visual contribution, §3.5)
+
+```bash
+python -m scripts.make_confidence_strips                       # all 4 modalities
+python -m scripts.make_confidence_strips --datasets bloodmnist # just one
+```
+
+Writes `figures/strip/{dataset}_strip.pdf` for PathMNIST, DermaMNIST,
+PneumoniaMNIST, and BloodMNIST — the four strips that stack into Figure 1. Each
+strip shows N augmented views with a coloured bar under each encoding its
+entropy weight (dark/tall = trusted, pale/short = rejected). With the default
+`--n-views 10` (which includes the original view) the strip shows 9 of the 10
+base augmentations; pass `--include-all-augs` to show all 10 types instead.
+
+### ⚠️ Variance-weighting semantics — needs a supervisor decision
+
+The proposal's variance formula `w_i = 1/(var(p_i)+ε)` is implemented **literally**,
+and its specified unit test ("near-zero-variance view gets the highest weight")
+passes. But note: `var(p_i)` is the variance of the softmax vector *across
+classes*, and a flat/uncertain distribution has near-zero class-variance while a
+confident peaked one has high class-variance. So as written, this strategy
+upweights the **least** confident views — the opposite of the "confident views
+dominate" intuition in the same proposal table. It's implemented as specified so
+the code and the published methodology agree and the experiment measures the
+defined strategy; if the team wants "confident dominates" semantics, it's a
+one-line flip in `fuse_variance` (`weights = var + eps`) but should be a
+deliberate decision by @MohamedHafez. Flagged in the code docstring too.
+
+> **Important:** Phase 3 only *adds* files (`src/mc_dropout.py`, `src/evaluate.py`,
+> new functions in `src/tta.py` and `src/visualize.py`, and three new scripts).
+> It does not modify the Phase 1/2 pipeline — existing baselines, checkpoints,
+> and standard-TTA results stay valid. `tta_predict` still defaults to
+> equal-weight, so nothing in Phase 2 changes behaviour.
+
+---
+
 ## No local GPU? Use the Kaggle notebook
 
 Open `notebooks/kaggle_baseline.ipynb` in Kaggle (Settings → Accelerator → GPU T4)
@@ -304,20 +394,32 @@ uncertainty-tta-medmnist/
 ├── src/                   # Core library — modify only via PR, S1 approval
 │   ├── config.py          # Per-dataset configs (single source of truth)
 │   ├── data.py            # MedMNIST loading + transforms
-│   ├── model.py           # ResNet-18 builder
+│   ├── model.py           # ResNet-18 builder (optional dropout head)
 │   ├── metrics.py         # Accuracy, AUC, ECE, NLL
+│   ├── augmentations.py   # 10 TTA augmentation types (§3.3)
+│   ├── tta.py             # per-view probs + fusion strategies (equal/maxprob/entropy/variance)
+│   ├── mc_dropout.py      # MC Dropout baseline (forward-hook dropout, no retrain)
+│   ├── evaluate.py        # tta_evaluate() + run_all_strategies() across all 5
 │   ├── train.py           # Training & evaluation loops
+│   ├── visualize.py       # reliability / curves / aug grid / confidence strip
 │   └── utils.py           # Seeding, device, checkpoint I/O
 ├── scripts/
-│   └── train_baseline.py  # ← run this for Phase 1
+│   ├── train_baseline.py       # ← Phase 1
+│   ├── run_standard_tta.py     # ← Phase 2
+│   ├── run_weighted_tta.py     # ← Phase 3: all 5 strategies, one dataset
+│   ├── make_confidence_strips.py  # ← Phase 3: Figure 1 strips
+│   └── build_full_matrix.py    # ← Phase 3: merge per-dataset CSVs -> full_matrix.csv
 ├── tests/
-│   └── test_metrics.py    # pytest unit tests for the metrics module
+│   ├── test_metrics.py    # metrics unit tests
+│   ├── test_tta.py        # augmentation + equal-weight fusion tests
+│   ├── test_fusion.py     # weighted fusion strategy tests (Phase 3)
+│   └── test_mc_dropout.py # MC Dropout tests (Phase 3)
 ├── notebooks/
-│   └── kaggle_baseline.ipynb  # Kaggle/Colab runner
+│   └── kaggle_baseline.ipynb  # Kaggle/Colab runner (Phases 1–3)
 ├── docs/                  # Proposal PDF + results tracker XLSX
 ├── checkpoints/           # gitignored — saved .pth files (~45 MB each)
-├── results/               # commit JSON metrics here (small, in-repo)
-├── figures/               # for Phase 3+ outputs
+├── results/               # commit JSON/CSV metrics here (small, in-repo)
+├── figures/               # TTA curves, reliability diagrams, strips
 ├── requirements.txt
 └── README.md              # this file
 ```
@@ -329,8 +431,8 @@ uncertainty-tta-medmnist/
 | Phase | Days | Deliverable | Code lives in |
 |---|---|---|---|
 | 1 — Baselines | 1–3 | 6 trained checkpoints + Sheet 1 filled | `scripts/train_baseline.py` |
-| 2 — Standard TTA | 4–7 | `src/tta.py` + `src/augmentations.py`, Sheet 2 filled | `scripts/run_standard_tta.py` (**current**) |
-| 3 — Weighted TTA | 8–11 | weighted fusion in `src/tta.py`, Sheet 3 filled, 4 confidence strips | (to be written) |
+| 2 — Standard TTA | 4–7 | `src/tta.py` + `src/augmentations.py`, Sheet 2 filled | `scripts/run_standard_tta.py` |
+| 3 — Weighted TTA | 8–11 | weighted fusion + MC Dropout, Sheet 3 + `full_matrix.csv`, 4 confidence strips | `scripts/run_weighted_tta.py`, `scripts/make_confidence_strips.py` (**current**) |
 | 4 — Ablations | 12–14 | Sheets 4–7 + reliability diagrams | (to be written) |
 | 5 — Paper | 15–17 | Manuscript | — |
 

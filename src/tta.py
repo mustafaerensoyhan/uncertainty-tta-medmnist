@@ -100,6 +100,125 @@ def fuse_equal_weight(per_view_probs: np.ndarray) -> np.ndarray:
     return per_view_probs.mean(axis=0)
 
 
+# ── Uncertainty-weighted fusion strategies (Phase 3) ───────────────────────
+# All share fuse_equal_weight's (N, S, C) -> (S, C) signature, so they are
+# drop-in replacements that reuse the cached per-view probabilities from
+# tta_per_view_probs. Each computes a per-(view, sample) weight w[i, s] from that
+# view's softmax vector, normalizes the weights across the N views for each
+# sample, and returns the weighted average. The expensive forward passes happen
+# once; trying another strategy is just a different reduction over (N, S, C).
+
+def _normalize_weights(weights: np.ndarray) -> np.ndarray:
+    """
+    Normalize per-view weights to sum to 1 across the view axis (axis 0).
+
+    weights: (N, S) -> (N, S), each column (sample) summing to 1. Any sample
+    whose weights sum to ~0 falls back to uniform 1/N (numerically safe).
+    """
+    n_views = weights.shape[0]
+    col_sums = weights.sum(axis=0, keepdims=True)            # (1, S)
+    safe = col_sums > 0
+    return np.where(safe, weights / np.where(safe, col_sums, 1.0), 1.0 / n_views)
+
+
+def _weighted_average(per_view_probs: np.ndarray, weights: np.ndarray) -> np.ndarray:
+    """Weighted average of views. per_view_probs (N,S,C), weights (N,S) -> (S,C)."""
+    w = _normalize_weights(weights)                          # (N, S)
+    return np.einsum("ns,nsc->sc", w, per_view_probs)
+
+
+def fuse_maxprob(per_view_probs: np.ndarray) -> np.ndarray:
+    """
+    Max-probability weighting: w_i = max_k p_i[k] (proposal §3.2).
+
+    Confident views (high peak probability) dominate. When every view shares the
+    same max probability the weights become uniform and this reduces exactly to
+    equal-weight fusion.
+    """
+    weights = per_view_probs.max(axis=2)                     # (N, S)
+    return _weighted_average(per_view_probs, weights)
+
+
+def fuse_entropy(per_view_probs: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    """
+    Softmax-entropy weighting: w_i = exp(-H(p_i)), H(p) = -Σ_k p_k log p_k
+    (proposal §3.2). Low-entropy (high-certainty) views get exponentially more
+    weight. eps guards the log against zero probabilities.
+    """
+    p = per_view_probs
+    entropy = -np.sum(p * np.log(p + eps), axis=2)           # (N, S)
+    return _weighted_average(p, np.exp(-entropy))
+
+
+def entropy_weights(per_view_probs: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    """
+    Return the NORMALIZED entropy weights (N, S) rather than the fused result.
+
+    Exposed for the Augmentation Confidence Strip (proposal §3.5), which needs
+    the per-view weight values themselves to draw the weight bars.
+    """
+    p = per_view_probs
+    entropy = -np.sum(p * np.log(p + eps), axis=2)           # (N, S)
+    return _normalize_weights(np.exp(-entropy))
+
+
+def fuse_variance(per_view_probs: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+    """
+    Predictive-variance weighting: w_i = 1 / (var(p_i) + ε) (proposal §3.2).
+
+    var(p_i) is the variance of the per-view probability VECTOR across the class
+    dimension — the only per-view variance available in single-pass TTA.
+
+    ⚠️ SEMANTICS CAVEAT (flagged for supervisor): the proposal's formula and its
+    specified unit test ("a near-zero-variance view gets the highest weight")
+    together upweight FLAT (low class-variance) softmax vectors. But a flat
+    softmax is the *uncertain* one — a confident, peaked prediction has HIGH
+    class-variance. So as literally written this strategy upweights the least
+    confident views, opposite to the "confident views dominate" intuition in the
+    same proposal table. We implement it literally so the published methodology
+    and the code agree and the experiment measures the strategy as defined. If
+    the intended semantics are "stable/confident views dominate," flip to
+    `weights = var + eps` — a one-line change, but a deliberate supervisor
+    decision, not a silent edit.
+    """
+    var = per_view_probs.var(axis=2)                         # (N, S)
+    return _weighted_average(per_view_probs, 1.0 / (var + eps))
+
+
+# Registry of probability-fusion strategies — everything that reduces a cached
+# (N, S, C) array. MC Dropout is intentionally NOT here: it needs its own
+# stochastic forward passes (src/mc_dropout.py) and is dispatched separately.
+FUSION_FNS = {
+    "baseline": fuse_equal_weight,
+    "maxprob": fuse_maxprob,
+    "entropy": fuse_entropy,
+    "variance": fuse_variance,
+}
+
+# Human-readable labels aligned with the tracker's Sheet 3 column headers.
+STRATEGY_LABELS = {
+    "baseline": "Baseline TTA (w=1/N)",
+    "maxprob": "Max-Prob Weight (w=max p_i)",
+    "entropy": "Entropy Weight (w=exp(-H))",
+    "variance": "Variance Weight (w=1/(var+e))",
+    "mc_dropout": "MC Dropout (T stochastic passes)",
+}
+
+
+def fuse(per_view_probs: np.ndarray, strategy: str) -> np.ndarray:
+    """
+    Dispatch to a probability-fusion strategy by name.
+
+    strategy ∈ {baseline, maxprob, entropy, variance}. mc_dropout is handled
+    separately (src/evaluate.py) because it is not a reduction over per-view
+    probabilities.
+    """
+    if strategy not in FUSION_FNS:
+        valid = ", ".join(FUSION_FNS)
+        raise ValueError(f"Unknown fusion strategy '{strategy}'. Valid: {valid}")
+    return FUSION_FNS[strategy](per_view_probs)
+
+
 def tta_predict(model: nn.Module, loader: DataLoader, device: torch.device,
                 augmentations: List[Tuple[AugFn, str]]
                 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:

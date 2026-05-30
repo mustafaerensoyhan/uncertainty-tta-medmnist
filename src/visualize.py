@@ -158,6 +158,74 @@ def accuracy_vs_n(df: pd.DataFrame, save_path: str | Path | None = None,
     plt.close(fig)
 
 
+def confidence_strip(views: "list", weights: np.ndarray, aug_names: "list[str]",
+                     dataset_name: str, save_path: str | Path | None = None) -> None:
+    """
+    Augmentation Confidence Strip — the VMV visual contribution (proposal §3.5).
+
+    Two-row figure: the top row shows each augmented view as a thumbnail; the
+    bottom row shows a coloured weight bar (height + Blues intensity) encoding
+    the entropy weight w_i assigned to that view. High-weight (trusted) views
+    get a tall dark-blue bar; low-weight (rejected) views get a short pale bar.
+
+    Args:
+        views: list of N augmented [0,1] image tensors (C, H, W) or arrays
+        weights: (N,) normalized entropy weights (sum to 1), one per view
+        aug_names: list of N augmentation names (column labels)
+        dataset_name: title suffix, e.g. "PathMNIST (Histology)"
+        save_path: where to save the PDF/PNG (figures/strip/<name>_strip.pdf)
+    """
+    import torch
+
+    weights = np.asarray(weights, dtype=np.float64)
+    n = len(views)
+    fig, axes = plt.subplots(2, n, figsize=(n * 1.6, 3.5),
+                             gridspec_kw={"height_ratios": [3, 1.4]})
+    fig.suptitle(f"Augmentation Confidence Strip — {dataset_name}",
+                 fontsize=11, fontweight="bold", y=1.02)
+
+    cmap = plt.get_cmap("Blues")
+    span = weights.max() - weights.min()
+    norm_w = (weights - weights.min()) / (span + 1e-8)  # 0..1 for colour mapping
+
+    for i in range(n):
+        view = views[i]
+        if isinstance(view, torch.Tensor):
+            img_np = view.detach().cpu().clamp(0, 1).permute(1, 2, 0).numpy()
+        else:
+            img_np = np.asarray(view)
+            if img_np.ndim == 3 and img_np.shape[0] in (1, 3):
+                img_np = np.transpose(img_np, (1, 2, 0))
+        # Per-image min-max stretch purely for display contrast.
+        rng = img_np.max() - img_np.min()
+        img_np = (img_np - img_np.min()) / (rng + 1e-8)
+
+        ax_img = axes[0, i]
+        is_gray = img_np.ndim == 2 or img_np.shape[-1] == 1
+        ax_img.imshow(img_np.squeeze(), cmap="gray" if is_gray else None)
+        ax_img.set_title(aug_names[i], fontsize=7, rotation=30, ha="right")
+        ax_img.axis("off")
+
+        ax_bar = axes[1, i]
+        ax_bar.bar(0, weights[i], color=cmap(0.3 + 0.7 * norm_w[i]),
+                   width=0.6, edgecolor="navy", linewidth=0.5)
+        ax_bar.set_ylim(0, weights.max() * 1.15 + 1e-6)
+        ax_bar.set_xlim(-0.5, 0.5)
+        ax_bar.set_xticks([])
+        ax_bar.text(0, weights[i] + weights.max() * 0.03, f"{weights[i]:.2f}",
+                    ha="center", va="bottom", fontsize=7)
+        if i == 0:
+            ax_bar.set_ylabel("weight $w_i$", fontsize=8)
+        else:
+            ax_bar.set_yticks([])
+
+    plt.tight_layout()
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 def training_curves(log: "list[dict[str, Any]] | pd.DataFrame",
                     save_path: str | Path | None = None,
                     title: str = "Training curves") -> None:
