@@ -18,5 +18,8 @@
     "ece": 0.0520189072077091,
     "nll": 0.3268061876296997
   },
-  "training_time_minutes": 19.1
+  "training_time_minutes": 19.1,
+  "re_evaluated": true,
+  "re_evaluated_on": "2026-05-31",
+  "re_eval_note": "test_metrics regenerated from the checkpoint on disk (no retraining); training metadata preserved from prior JSON."
 }
