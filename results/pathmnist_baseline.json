@@ -10,10 +10,14 @@
   "checkpoint": "checkpoints\\pathmnist_resnet18.pth",
   "benchmark_acc": 0.881,
   "test_metrics": {
-    "accuracy": 0.9176880222841226,
-    "auc_roc": 0.9946611015716645,
-    "ece": 0.05521945234045676,
-    "nll": 0.34234997630119324
+    "accuracy": 0.9341225626740947,
+    "auc_roc": 0.9961367529327367,
+    "ece": 0.01114168312390206,
+    "nll": 0.20095932483673096
   },
-  "training_time_minutes": 33.81
+  "training_time_minutes": 33.81,
+  "reliability_figure": "figures\\reliability\\pathmnist_baseline.png",
+  "re_evaluated": true,
+  "re_evaluated_on": "2026-05-30",
+  "re_eval_note": "test_metrics regenerated from the checkpoint on disk (no retraining); training metadata preserved from prior JSON."
 }

@@ -47,7 +47,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--mc-p", type=float, default=0.2)
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--img-size", type=int, default=64, choices=[28, 64])
-    p.add_argument("--num-workers", type=int, default=2)
+    p.add_argument("--num-workers", type=int, default=0,
+                   help="DataLoader workers. 0 (default) is safe on Windows; "
+                        "use 2-4 on Linux/Kaggle for a speedup.")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--data-root", default="./data")
     p.add_argument("--checkpoints-dir", default="./checkpoints")
@@ -98,20 +100,20 @@ def main() -> int:
 
     def fmt(v, pct=False):
         if v is None:
-            return "   -  "
-        return f"{v*100:6.2f}" if pct else f"{v:6.4f}"
+            return f"{'-':>9}"
+        return f"{v*100:9.2f}" if pct else f"{v:9.4f}"
 
-    print(f"{'strategy':<26}{'acc%':>7}{'ECE':>8}{'NLL':>8}{'AUC':>8}"
-          f"{'Inf.ms':>9}{'Δacc':>8}{'ΔECE':>9}")
-    print("-" * 92)
+    print(f"{'strategy':<14}{'acc%':>9}{'ECE':>9}{'NLL':>9}{'AUC':>9}"
+          f"{'Inf.ms':>10}{'Δacc':>9}{'ΔECE':>10}")
+    print("-" * 80)
     rows = []
     for strat in ALL_STRATEGIES:
         m = results[strat]
         d_acc = (m["accuracy"] - base_acc) * 100
         d_ece = m["ece"] - base_ece
-        infms = f"{m['inf_ms']:8.3f}" if m["inf_ms"] is not None else "      - "
-        tag = "" if strat == "baseline" else f"{d_acc:+7.2f}{d_ece:+9.4f}"
-        print(f"{STRATEGY_LABELS[strat]:<26}{fmt(m['accuracy'], pct=True)}"
+        infms = f"{m['inf_ms']:10.3f}" if m["inf_ms"] is not None else f"{'-':>10}"
+        tag = "" if strat == "baseline" else f"{d_acc:+9.2f}{d_ece:+10.4f}"
+        print(f"{strat:<14}{fmt(m['accuracy'], pct=True)}"
               f"{fmt(m['ece'])}{fmt(m['nll'])}{fmt(m['auc_roc'])}{infms}{tag}")
         rows.append({
             "dataset": cfg.key, "student": cfg.student, "strategy": strat,

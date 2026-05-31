@@ -46,7 +46,9 @@ def parse_args() -> argparse.Namespace:
                    help="View counts to evaluate (default: 5 10 20 50).")
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--img-size", type=int, default=64, choices=[28, 64])
-    p.add_argument("--num-workers", type=int, default=2)
+    p.add_argument("--num-workers", type=int, default=0,
+                   help="DataLoader workers. 0 (default) is safe on Windows; "
+                        "use 2-4 on Linux/Kaggle for a speedup.")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--data-root", default="./data")
     p.add_argument("--checkpoints-dir", default="./checkpoints")

@@ -456,6 +456,14 @@ explicit team decision.
 
 ## Troubleshooting
 
+**Scripts hang for ages on "Fitting temperature / fusing..." (Windows)**
+On Windows, DataLoader workers use *spawn*, so each worker reboots Python and
+re-loads torch's CUDA DLLs — with several loaders open (val + test + TTA + MC
+dropout + the timing re-runs), `run_weighted_tta` can stall for many minutes.
+The scripts now default to `--num-workers 0` (single-process), which avoids it.
+If you ever override it, keep workers at 0 on Windows; on Linux/Kaggle you can
+use `--num-workers 2`–`4` for a speedup.
+
 **`remote rejected ... protected branch` when pushing**
 You tried to push to `main`. That's blocked for everyone except S1. Create a
 branch and open a PR instead — see the **Workflow & access** section above.
