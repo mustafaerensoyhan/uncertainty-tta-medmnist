@@ -29,7 +29,7 @@ env/
 data/
 checkpoints/*.pth
 checkpoints/*.pt
-results/*.csv
+results/*log.csv
 !results/.gitkeep
 !checkpoints/.gitkeep
 figures/*.png
