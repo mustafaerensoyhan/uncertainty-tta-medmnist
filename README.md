@@ -331,58 +331,98 @@ everywhere (proposal §3.4) — generate all official numbers through
 
 ## Phase 4 — Ablations, Significance & Figures (Days 12–14)
 
-Phase 4 is **analysis**, run after everyone's Phase 3 results + per-image arrays
-are in. Most of it needs **no retraining** — it reads the saved
+Phase 4 is **analysis**. Most of it needs **no retraining** — it reads the saved
 `predictions/*.npy` and `results/*_weighted_tta.csv`. The one exception is the
-multi-seed stability study, which retrains (see below).
+multi-seed stability study, which retrains.
 
-### Statistical significance (addendum Addition 4) — no retrain
+### Who runs what
+
+Phase 4 splits differently from Phase 3: each student owns **one dataset**, but
+the cross-dataset analysis needs *everyone's* results, so it is run **once by S1**
+after all six datasets are committed.
+
+| Task | Who | Retrain? |
+|---|---|---|
+| Ablations (N-views + augmentation leave-one-out) on your dataset | **each student** | no |
+| Multi-seed stability (3 seeds) | **S1 (Path), S5 (Pneumonia), S3 (Breast)** only | **yes** |
+| Significance (McNemar + Wilcoxon) | **S1**, after all 6 datasets in | no |
+| Reliability diagrams + analysis figures | **S1**, after all 6 datasets in | no |
+
+So S2 (Derma) and S4 (OrganA): you run **only the two ablation commands** below.
+S3 and S5: ablations **plus** the seed study for your dataset. S1: ablations for
+Path + Blood, the Path seed study, and all the cross-dataset analysis at the end.
+
+### Each student — ablations on your dataset (no retrain)
+
+Run the ablation with the **strategy that won Phase 3 for your dataset** (the
+"Best Strategy" column in the Sheet-4 ablation tab), via `--strategy`:
 
 ```bash
-python -m scripts.significance                      # entropy vs baseline
-python -m scripts.significance --strategy variance  # any strategy vs baseline
+# S2 — DermaMNIST (entropy)
+python -m scripts.ablate_n            --dataset dermamnist --strategy entropy
+python -m scripts.ablate_augmentations --dataset dermamnist --strategy entropy
+# S5 — PneumoniaMNIST (max-prob)
+python -m scripts.ablate_n            --dataset pneumoniamnist --strategy maxprob
+python -m scripts.ablate_augmentations --dataset pneumoniamnist --strategy maxprob
+# S3 — BreastMNIST (max-prob)
+python -m scripts.ablate_n            --dataset breastmnist --strategy maxprob
+python -m scripts.ablate_augmentations --dataset breastmnist --strategy maxprob
+# S4 — OrganAMNIST (variance)
+python -m scripts.ablate_n            --dataset organamnist --strategy variance
+python -m scripts.ablate_augmentations --dataset organamnist --strategy variance
+# S1 — PathMNIST + BloodMNIST (entropy)
+python -m scripts.ablate_n            --dataset pathmnist  --strategy entropy
+python -m scripts.ablate_augmentations --dataset pathmnist  --strategy entropy
+python -m scripts.ablate_n            --dataset bloodmnist --strategy entropy
+python -m scripts.ablate_augmentations --dataset bloodmnist --strategy entropy
 ```
 
-McNemar per dataset (paired image-by-image) → `results/significance.csv`;
-Wilcoxon across datasets (paired accuracy + ECE) → `results/significance_wilcoxon.csv`.
-Reads the per-image arrays from `predictions/`. Wilcoxon needs all 6 datasets for
-real power (it warns when fewer are present).
-
-### Reliability diagrams + analysis figures — no retrain
-
-```bash
-python -m scripts.make_reliability_diagrams     # figures/reliability/{ds}_{strategy}.pdf
-python -m scripts.analysis_figures              # modality bars + latency tradeoff
-```
-
-### Ablations (on existing checkpoints) — no retrain
-
-```bash
-python -m scripts.ablate_n --dataset pathmnist                 # accuracy/ECE vs N
-python -m scripts.ablate_augmentations --dataset pathmnist     # leave-one-out per augmentation
-```
+Default `--strategy` is `entropy`; pass the one that matches your Sheet-4 row.
+Outputs (fill the ablation sheet directly from these):
+  - `results/{dataset}_ablation_N.csv` — one row per N (acc/ECE/NLL) -> Sheet 4 (N-views)
+  - `results/{dataset}_ablation_aug.csv` — leave-one-out per augmentation -> Sheet 5
+  - `figures/ablation_N/`, `figures/ablation_aug/` — the plots
 
 `ablate_augmentations` flags augmentations that are *harmful* (accuracy rises
-when they're removed) — the per-modality safety story.
+when removed) — the per-modality safety story.
 
-### Multi-seed stability (addendum Addition 4, Tool 3) — the ONLY retraining
+Commit your two ablation CSVs + the figures via PR.
 
-Train each model with extra seeds into **tagged** checkpoints (so the canonical
-one is never overwritten), evaluate each, then aggregate. The addendum's
-pragmatic scope: 3 seeds on 3 representative datasets (Path, Pneumonia, Breast),
-single seed elsewhere.
+### S3 / S5 / S1 — multi-seed stability (the ONLY retraining)
+
+Train your dataset with 3 seeds into **tagged** checkpoints (canonical one is
+never overwritten), evaluate each, then aggregate. Example for PathMNIST:
 
 ```bash
-# example: PathMNIST seeds 0 / 42 / 123
 python -m scripts.train_baseline   --dataset pathmnist --seed 0   --ckpt-tag _seed0
 python -m scripts.run_weighted_tta --dataset pathmnist --ckpt-tag _seed0 --no-time
-# ...repeat for _seed42, _seed123...
-python -m scripts.aggregate_seeds  --datasets pathmnist        # -> results/seed_stability.csv (mean ± std)
+python -m scripts.train_baseline   --dataset pathmnist --seed 42  --ckpt-tag _seed42
+python -m scripts.run_weighted_tta --dataset pathmnist --ckpt-tag _seed42 --no-time
+python -m scripts.train_baseline   --dataset pathmnist --seed 123 --ckpt-tag _seed123
+python -m scripts.run_weighted_tta --dataset pathmnist --ckpt-tag _seed123 --no-time
+python -m scripts.aggregate_seeds  --datasets pathmnist     # -> results/seed_stability.csv (mean ± std)
 ```
 
 `--ckpt-tag` writes `checkpoints/{ds}_resnet18_seed0.pth` and
 `results/{ds}_seed0_weighted_tta.csv`; the canonical (no-tag) files are untouched,
-so your headline Phase 1–3 numbers stay valid and the seeds only add error bars.
+so the headline Phase 1–3 numbers stay valid and the seeds only add error bars.
+Commit the aggregated `seed_stability.csv` (the per-seed weighted CSVs and
+`predictions/` arrays stay out of git — Drive only).
+
+### S1 only — cross-dataset analysis (after all 6 datasets are committed)
+
+These need every dataset's results/predictions, so run them last, once:
+
+```bash
+python -m scripts.build_full_matrix              # merge per-dataset CSVs
+python -m scripts.significance                   # McNemar (per ds) + Wilcoxon (across ds)
+python -m scripts.make_reliability_diagrams      # figures/reliability/{ds}_{strategy}.pdf
+python -m scripts.analysis_figures               # modality bars + latency tradeoff
+```
+
+McNemar -> `results/significance.csv`; Wilcoxon -> `results/significance_wilcoxon.csv`
+(needs all 6 datasets for real power). Don't commit these until all 6 are in —
+partial runs are misleading.
 
 ## No local GPU? Use the Kaggle notebook
 
