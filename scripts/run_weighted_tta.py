@@ -55,6 +55,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--checkpoints-dir", default="./checkpoints")
     p.add_argument("--results-dir", default="./results")
     p.add_argument("--predictions-dir", default="./predictions")
+    p.add_argument("--ckpt-tag", default="",
+                   help="Checkpoint/results suffix, e.g. '_seed0' for the Phase 4\n"
+                        "multi-seed study. Empty (default) = canonical files.")
     p.add_argument("--no-time", action="store_true",
                    help="Skip inference-time measurement (faster; leaves Inf.ms blank).")
     p.add_argument("--cpu", action="store_true")
@@ -67,7 +70,8 @@ def main() -> int:
     cfg = get_config(args.dataset)
     device = get_device(prefer_cuda=not args.cpu)
 
-    ckpt_path = Path(args.checkpoints_dir) / f"{cfg.key}_resnet18.pth"
+    tag = args.ckpt_tag
+    ckpt_path = Path(args.checkpoints_dir) / f"{cfg.key}_resnet18{tag}.pth"
     if not ckpt_path.exists():
         print(f"ERROR: checkpoint not found at {ckpt_path}")
         print(f"Run Phase 1 first:  python -m scripts.train_baseline --dataset {cfg.key}")
@@ -124,7 +128,7 @@ def main() -> int:
             "temperature": round(T, 4),
         })
 
-    out = Path(args.results_dir) / f"{cfg.key}_weighted_tta.csv"
+    out = Path(args.results_dir) / f"{cfg.key}{tag}_weighted_tta.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(out, index=False)
     print(f"\nResults saved to: {out}   ({n_test} test images, T={T:.3f})")
@@ -132,11 +136,11 @@ def main() -> int:
     # ── Per-image prediction arrays (addendum Addition 5) ──
     pdir = Path(args.predictions_dir)
     pdir.mkdir(parents=True, exist_ok=True)
-    np.save(pdir / f"{cfg.key}_labels.npy", labels)
+    np.save(pdir / f"{cfg.key}{tag}_labels.npy", labels)
     for strat in ALL_STRATEGIES:
         probs = fused[strat]
-        np.save(pdir / f"{cfg.key}_{strat}_probs.npy", probs.astype(np.float32))
-        np.save(pdir / f"{cfg.key}_{strat}_preds.npy", probs.argmax(axis=1).astype(np.int64))
+        np.save(pdir / f"{cfg.key}{tag}_{strat}_probs.npy", probs.astype(np.float32))
+        np.save(pdir / f"{cfg.key}{tag}_{strat}_preds.npy", probs.argmax(axis=1).astype(np.int64))
     print(f"Saved per-image preds/probs for {len(ALL_STRATEGIES)} strategies + labels "
           f"to {pdir}/ (push to shared Drive, NOT git).")
 

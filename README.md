@@ -329,6 +329,61 @@ the literal `1/(var+ε)` is shipped as `variance_inv` and reported as the
 everywhere (proposal §3.4) — generate all official numbers through
 `run_weighted_tta` so every student's row is computed identically.
 
+## Phase 4 — Ablations, Significance & Figures (Days 12–14)
+
+Phase 4 is **analysis**, run after everyone's Phase 3 results + per-image arrays
+are in. Most of it needs **no retraining** — it reads the saved
+`predictions/*.npy` and `results/*_weighted_tta.csv`. The one exception is the
+multi-seed stability study, which retrains (see below).
+
+### Statistical significance (addendum Addition 4) — no retrain
+
+```bash
+python -m scripts.significance                      # entropy vs baseline
+python -m scripts.significance --strategy variance  # any strategy vs baseline
+```
+
+McNemar per dataset (paired image-by-image) → `results/significance.csv`;
+Wilcoxon across datasets (paired accuracy + ECE) → `results/significance_wilcoxon.csv`.
+Reads the per-image arrays from `predictions/`. Wilcoxon needs all 6 datasets for
+real power (it warns when fewer are present).
+
+### Reliability diagrams + analysis figures — no retrain
+
+```bash
+python -m scripts.make_reliability_diagrams     # figures/reliability/{ds}_{strategy}.pdf
+python -m scripts.analysis_figures              # modality bars + latency tradeoff
+```
+
+### Ablations (on existing checkpoints) — no retrain
+
+```bash
+python -m scripts.ablate_n --dataset pathmnist                 # accuracy/ECE vs N
+python -m scripts.ablate_augmentations --dataset pathmnist     # leave-one-out per augmentation
+```
+
+`ablate_augmentations` flags augmentations that are *harmful* (accuracy rises
+when they're removed) — the per-modality safety story.
+
+### Multi-seed stability (addendum Addition 4, Tool 3) — the ONLY retraining
+
+Train each model with extra seeds into **tagged** checkpoints (so the canonical
+one is never overwritten), evaluate each, then aggregate. The addendum's
+pragmatic scope: 3 seeds on 3 representative datasets (Path, Pneumonia, Breast),
+single seed elsewhere.
+
+```bash
+# example: PathMNIST seeds 0 / 42 / 123
+python -m scripts.train_baseline   --dataset pathmnist --seed 0   --ckpt-tag _seed0
+python -m scripts.run_weighted_tta --dataset pathmnist --ckpt-tag _seed0 --no-time
+# ...repeat for _seed42, _seed123...
+python -m scripts.aggregate_seeds  --datasets pathmnist        # -> results/seed_stability.csv (mean ± std)
+```
+
+`--ckpt-tag` writes `checkpoints/{ds}_resnet18_seed0.pth` and
+`results/{ds}_seed0_weighted_tta.csv`; the canonical (no-tag) files are untouched,
+so your headline Phase 1–3 numbers stay valid and the seeds only add error bars.
+
 ## No local GPU? Use the Kaggle notebook
 
 Open `notebooks/kaggle_baseline.ipynb` in Kaggle (Settings → Accelerator → GPU T4)
@@ -418,13 +473,20 @@ uncertainty-tta-medmnist/
 │   ├── run_weighted_tta.py     # ← Phase 3: 8 strategies + TS + inf_ms + per-image preds
 │   ├── make_confidence_strips.py  # ← Phase 3: Figure 1 strips (×3 images/modality)
 │   ├── eval_checkpoint.py      # ← reconcile baseline JSON from a checkpoint (no retrain)
-│   └── build_full_matrix.py    # ← Phase 3: merge per-dataset CSVs -> full_matrix.csv
+│   ├── build_full_matrix.py    # ← Phase 3: merge per-dataset CSVs -> full_matrix.csv
+│   ├── significance.py         # ← Phase 4: McNemar + Wilcoxon (reads predictions/)
+│   ├── make_reliability_diagrams.py  # ← Phase 4: calibration diagrams from saved probs
+│   ├── analysis_figures.py     # ← Phase 4: modality bars + latency tradeoff
+│   ├── ablate_n.py             # ← Phase 4: accuracy/ECE vs N
+│   ├── ablate_augmentations.py # ← Phase 4: leave-one-out per augmentation
+│   └── aggregate_seeds.py      # ← Phase 4: multi-seed mean ± std
 ├── tests/
 │   ├── test_metrics.py    # metrics unit tests
 │   ├── test_tta.py        # augmentation + equal-weight fusion tests
 │   ├── test_fusion.py     # weighted fusion strategy tests (Phase 3)
 │   ├── test_mc_dropout.py # MC Dropout tests (Phase 3)
-│   └── test_temperature.py # temperature scaling tests (Phase 3)
+│   ├── test_temperature.py # temperature scaling tests (Phase 3)
+│   └── test_significance.py # McNemar test (Phase 4)
 ├── notebooks/
 │   └── kaggle_baseline.ipynb  # Kaggle/Colab runner (Phases 1–3)
 ├── docs/                  # Proposal PDF + results tracker XLSX
@@ -445,7 +507,7 @@ uncertainty-tta-medmnist/
 | 1 — Baselines | 1–3 | 6 trained checkpoints + Sheet 1 filled | `scripts/train_baseline.py` |
 | 2 — Standard TTA | 4–7 | `src/tta.py` + `src/augmentations.py`, Sheet 2 filled | `scripts/run_standard_tta.py` |
 | 3 — Weighted TTA (+addendum) | 8–11 | 8 strategies + temperature scaling + inference time + per-image preds, Sheet 3 + `full_matrix.csv`, 12 confidence strips | `scripts/run_weighted_tta.py`, `scripts/make_confidence_strips.py` (**current**) |
-| 4 — Ablations + stats | 12–14 | reliability diagrams, McNemar/Wilcoxon, seeds (addendum Addition 4) | (to be written) |
+| 4 — Ablations + stats | 12–14 | reliability diagrams, McNemar/Wilcoxon, ablations, multi-seed mean±std | `significance.py`, `analysis_figures.py`, `ablate_*.py`, `aggregate_seeds.py` (**current**) |
 | 5 — Paper | 15–17 | Manuscript | — |
 
 Each phase adds new modules under `src/` and `scripts/`. Existing files are

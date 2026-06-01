@@ -51,6 +51,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--data-root", default="./data",
                    help="Folder where MedMNIST .npz files are cached.")
     p.add_argument("--checkpoints-dir", default="./checkpoints")
+    p.add_argument("--ckpt-tag", default="",
+                   help="Suffix for the checkpoint filename, e.g. '_seed0' for the\n"
+                        "Phase 4 multi-seed study. Empty (default) = canonical checkpoint.")
     p.add_argument("--results-dir", default="./results")
     p.add_argument("--figures-dir", default="./figures")
     p.add_argument("--cpu", action="store_true", help="Force CPU even if CUDA is available.")
@@ -93,7 +96,7 @@ def main() -> int:
     print(f"  ResNet-18 parameters: {count_parameters(model):,}\n")
 
     # Train
-    ckpt_path = Path(args.checkpoints_dir) / f"{cfg.key}_resnet18.pth"
+    ckpt_path = Path(args.checkpoints_dir) / f"{cfg.key}_resnet18{args.ckpt_tag}.pth"
     start = time.perf_counter()
     print(f"Training for {args.epochs} epochs (best-val checkpoint saved to {ckpt_path})\n")
     _, train_log = fit(model, train_loader, val_loader, cfg=cfg, device=device,
