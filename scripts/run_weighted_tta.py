@@ -116,9 +116,9 @@ def main() -> int:
         d_acc = (m["accuracy"] - base_acc) * 100
         d_ece = m["ece"] - base_ece
         infms = f"{m['inf_ms']:10.3f}" if m["inf_ms"] is not None else f"{'-':>10}"
-        tag = "" if strat == "baseline" else f"{d_acc:+9.2f}{d_ece:+10.4f}"
+        delta_tag = "" if strat == "baseline" else f"{d_acc:+9.2f}{d_ece:+10.4f}"
         print(f"{strat:<14}{fmt(m['accuracy'], pct=True)}"
-              f"{fmt(m['ece'])}{fmt(m['nll'])}{fmt(m['auc_roc'])}{infms}{tag}")
+              f"{fmt(m['ece'])}{fmt(m['nll'])}{fmt(m['auc_roc'])}{infms}{delta_tag}")
         rows.append({
             "dataset": cfg.key, "student": cfg.student, "strategy": strat,
             "n_views": args.n_views if strat not in ("mc_dropout", "ts_only") else
