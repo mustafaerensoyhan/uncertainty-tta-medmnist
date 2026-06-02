@@ -1,0 +1,9 @@
+dataset,strategy,n_seeds,accuracy_mean,accuracy_std,auc_roc_mean,auc_roc_std,ece_mean,ece_std,nll_mean,nll_std
+pneumoniamnist,baseline,3,0.8526,0.007,0.9795,0.0031,0.0957,0.0107,0.5198,0.0941
+pneumoniamnist,maxprob,3,0.8515,0.0079,0.9796,0.0032,0.0968,0.0085,0.5291,0.092
+pneumoniamnist,entropy,3,0.852,0.0088,0.9798,0.0031,0.0975,0.0103,0.5362,0.0912
+pneumoniamnist,variance,3,0.8451,0.0107,0.9789,0.0012,0.1143,0.0148,0.5747,0.0833
+pneumoniamnist,variance_inv,3,0.8478,0.014,0.9783,0.003,0.0876,0.028,0.505,0.1038
+pneumoniamnist,mc_dropout,3,0.8643,0.0088,0.9744,0.0032,0.111,0.006,0.6247,0.0814
+pneumoniamnist,ts_only,3,0.8649,0.0081,0.9745,0.003,0.1048,0.0077,0.5483,0.0496
+pneumoniamnist,ts_entropy,3,0.851,0.0083,0.9804,0.0028,0.0962,0.0102,0.4894,0.0664
