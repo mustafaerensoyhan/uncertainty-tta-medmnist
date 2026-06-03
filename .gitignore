@@ -48,3 +48,6 @@ local_settings.py
 
 # Per-image prediction arrays (addendum Addition 5) — large, push to shared Drive
 predictions/
+
+!results/*_seed_stability.csv
+!results/seed_stability.csv
