@@ -70,11 +70,24 @@ def main() -> int:
               "with --ckpt-tag _seed<N> for at least 2 seeds first.")
         return 1
 
+    # Write ONE file per dataset (e.g. results/pathmnist_seed_stability.csv) so
+    # three students running this never touch the same file — the shared
+    # seed_stability.csv was merge-hostile and silently dropped rows. Each owner
+    # commits only their own {ds}_seed_stability.csv via PR.
     out = pd.DataFrame(all_rows)
-    out_path = rdir / "seed_stability.csv"
-    out.to_csv(out_path, index=False)
+    for ds, g in out.groupby("dataset", sort=False):
+        g.to_csv(rdir / f"{ds}_seed_stability.csv", index=False)
+        print(f"       wrote results/{ds}_seed_stability.csv")
 
-    print(f"\nMean +/- std written to {out_path}")
+    # Rebuild the combined view from EVERY per-dataset file present (not just the
+    # ones we computed now), so the combined file accumulates instead of replacing.
+    parts = [pd.read_csv(f) for f in sorted(rdir.glob("*_seed_stability.csv"))
+             if not f.name == "seed_stability.csv"]
+    combined = pd.concat(parts, ignore_index=True) if parts else out
+    combined.to_csv(rdir / "seed_stability.csv", index=False)
+
+    print(f"\nPer-dataset files + combined results/seed_stability.csv "
+          f"({combined['dataset'].nunique()} dataset(s)) written.")
     # Pretty-print accuracy ± std for a quick read.
     print(f"\n{'dataset':<16}{'strategy':<14}{'acc mean±std':>18}{'ece mean±std':>18}")
     print("-" * 66)
