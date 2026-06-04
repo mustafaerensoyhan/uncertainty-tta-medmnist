@@ -51,3 +51,9 @@ predictions/
 
 !results/*_seed_stability.csv
 !results/seed_stability.csv
+
+!results/significance.csv
+!results/significance_wilcoxon.csv
+!results/full_matrix.csv
+!figures/reliability/*.pdf
+!figures/analysis/*.pdf

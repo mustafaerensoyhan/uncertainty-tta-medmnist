@@ -1,0 +1,7 @@
+dataset,student,strategy,baseline,base_only_right,strat_only_right,net_gain_images,p_value,significant
+pathmnist,S1,entropy,baseline,16,28,12,0.0973,False
+dermamnist,S2,entropy,baseline,3,4,1,1.0,False
+pneumoniamnist,S5,entropy,baseline,0,1,1,1.0,False
+breastmnist,S3,entropy,baseline,0,1,1,1.0,False
+bloodmnist,S1,entropy,baseline,2,3,1,1.0,False
+organamnist,S4,entropy,baseline,21,21,0,0.8774,False
