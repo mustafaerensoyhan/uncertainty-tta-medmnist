@@ -40,6 +40,15 @@ from scipy.stats import binomtest, chi2, wilcoxon
 from src.config import all_dataset_keys, get_config
 
 
+# Phase-3 winning strategy per dataset (matches the tracker's "Best Strategy"
+# column). Used by --best-per-dataset so each dataset is tested with the strategy
+# it actually won with, instead of one strategy applied uniformly.
+BEST_STRATEGY = {
+    "pathmnist": "entropy", "dermamnist": "entropy", "bloodmnist": "entropy",
+    "pneumoniamnist": "maxprob", "breastmnist": "maxprob", "organamnist": "variance",
+}
+
+
 def mcnemar(b01: int, b10: int) -> float:
     """
     McNemar p-value from the two discordant counts.
@@ -62,6 +71,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="McNemar + Wilcoxon significance tests (Phase 4).")
     ap.add_argument("--strategy", default="entropy",
                     help="Weighted strategy to test against baseline (default: entropy).")
+    ap.add_argument("--best-per-dataset", action="store_true",
+                    help="Test each dataset with its Phase-3 winning strategy "
+                         "(entropy/maxprob/variance) instead of one strategy for all.")
     ap.add_argument("--baseline", default="baseline")
     ap.add_argument("--predictions-dir", default="./predictions")
     ap.add_argument("--results-dir", default="./results")
@@ -74,20 +86,21 @@ def main() -> int:
     # ── McNemar per dataset (needs the per-image arrays) ──
     rows = []
     for ds in all_dataset_keys():
+        strat = BEST_STRATEGY.get(ds, args.strategy) if args.best_per_dataset else args.strategy
         need = [pdir / f"{ds}_labels.npy",
                 pdir / f"{ds}_{args.baseline}_preds.npy",
-                pdir / f"{ds}_{args.strategy}_preds.npy"]
+                pdir / f"{ds}_{strat}_preds.npy"]
         if not all(p.exists() for p in need):
             continue
         y = _load(pdir, ds, "labels").ravel()
         base_right = _load(pdir, ds, f"{args.baseline}_preds").ravel() == y
-        strat_right = _load(pdir, ds, f"{args.strategy}_preds").ravel() == y
+        strat_right = _load(pdir, ds, f"{strat}_preds").ravel() == y
         b01 = int((base_right & ~strat_right).sum())   # baseline right, strat wrong
         b10 = int((~base_right & strat_right).sum())   # baseline wrong, strat right
         p = mcnemar(b01, b10)
         rows.append({
             "dataset": ds, "student": get_config(ds).student,
-            "strategy": args.strategy, "baseline": args.baseline,
+            "strategy": strat, "baseline": args.baseline,
             "base_only_right": b01, "strat_only_right": b10,
             "net_gain_images": b10 - b01, "p_value": round(p, 4),
             "significant": bool(p < args.alpha),
@@ -102,12 +115,13 @@ def main() -> int:
     out = rdir / "significance.csv"
     mc.to_csv(out, index=False)
 
-    print(f"\nMcNemar — {args.strategy} vs {args.baseline} (per dataset)")
+    _label = "best-per-dataset" if args.best_per_dataset else args.strategy
+    print(f"\nMcNemar — {_label} vs {args.baseline} (per dataset)")
     print("-" * 78)
-    print(f"{'dataset':<16}{'base✓/strat✗':>13}{'base✗/strat✓':>13}"
+    print(f"{'dataset':<16}{'strategy':<10}{'base✓/strat✗':>13}{'base✗/strat✓':>13}"
           f"{'net':>6}{'p':>9}  sig")
     for r in rows:
-        print(f"{r['dataset']:<16}{r['base_only_right']:>13}{r['strat_only_right']:>13}"
+        print(f"{r['dataset']:<16}{r['strategy']:<10}{r['base_only_right']:>13}{r['strat_only_right']:>13}"
               f"{r['net_gain_images']:>6}{r['p_value']:>9.4f}  {'YES' if r['significant'] else 'no'}")
     print(f"\nSaved -> {out}")
 
@@ -118,9 +132,10 @@ def main() -> int:
         if not f.exists():
             continue
         df = pd.read_csv(f).set_index("strategy")
-        if args.strategy in df.index and args.baseline in df.index:
-            acc_s.append(df.loc[args.strategy, "accuracy"]); acc_b.append(df.loc[args.baseline, "accuracy"])
-            ece_s.append(df.loc[args.strategy, "ece"]);       ece_b.append(df.loc[args.baseline, "ece"])
+        strat = BEST_STRATEGY.get(ds, args.strategy) if args.best_per_dataset else args.strategy
+        if strat in df.index and args.baseline in df.index:
+            acc_s.append(df.loc[strat, "accuracy"]); acc_b.append(df.loc[args.baseline, "accuracy"])
+            ece_s.append(df.loc[strat, "ece"]);       ece_b.append(df.loc[args.baseline, "ece"])
             used.append(ds)
 
     wrows = []
