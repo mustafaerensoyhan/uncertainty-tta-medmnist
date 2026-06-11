@@ -7,13 +7,16 @@
   "batch_size": 64,
   "lr": 0.0001,
   "img_size": 64,
-  "checkpoint": "checkpoints\\bloodmnist_resnet18.pth",
+  "checkpoint": "checkpoints\\bloodmnist_resnet18_seed123.pth",
+  "train_log_csv": "results\\bloodmnist_train_log.csv",
+  "reliability_figure": "figures\\reliability\\bloodmnist_baseline.png",
+  "curves_figure": "figures\\curves\\bloodmnist_train_curves.png",
   "benchmark_acc": 0.969,
   "test_metrics": {
-    "accuracy": 0.9821689564454837,
-    "auc_roc": 0.9989163506788072,
-    "ece": 0.010744175491748323,
-    "nll": 0.07253473252058029
+    "accuracy": 0.9809997076878105,
+    "auc_roc": 0.9990569905296142,
+    "ece": 0.01075342338498453,
+    "nll": 0.07518869638442993
   },
-  "training_time_minutes": 13.77
+  "training_time_minutes": 12.41
 }
