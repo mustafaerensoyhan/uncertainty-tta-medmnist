@@ -1,0 +1,9 @@
+dataset,strategy,n_seeds,accuracy_mean,accuracy_std,auc_roc_mean,auc_roc_std,ece_mean,ece_std,nll_mean,nll_std
+organamnist,baseline,3,0.9521,0.0036,0.9962,0.0007,0.0577,0.0032,0.2305,0.0132
+organamnist,maxprob,3,0.9523,0.0037,0.9961,0.0007,0.0536,0.0032,0.2292,0.0136
+organamnist,entropy,3,0.9521,0.0037,0.996,0.0006,0.049,0.003,0.2281,0.0136
+organamnist,variance,3,0.952,0.0037,0.996,0.0006,0.0507,0.0032,0.229,0.0136
+organamnist,variance_inv,3,0.9519,0.0038,0.9963,0.0007,0.0702,0.0029,0.2411,0.0123
+organamnist,mc_dropout,3,0.9516,0.0037,0.998,0.0003,0.0321,0.0032,0.2148,0.0221
+organamnist,ts_only,3,0.9518,0.0038,0.998,0.0004,0.029,0.0047,0.1953,0.029
+organamnist,ts_entropy,3,0.952,0.0035,0.9962,0.0007,0.0496,0.0037,0.2197,0.0162
