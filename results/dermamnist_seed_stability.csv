@@ -1,0 +1,9 @@
+dataset,strategy,n_seeds,accuracy_mean,accuracy_std,auc_roc_mean,auc_roc_std,ece_mean,ece_std,nll_mean,nll_std
+dermamnist,baseline,3,0.8324,0.0108,0.9599,0.0026,0.0739,0.0102,0.5699,0.023
+dermamnist,maxprob,3,0.8321,0.0099,0.96,0.0026,0.0797,0.0087,0.5783,0.0223
+dermamnist,entropy,3,0.8328,0.0097,0.96,0.0026,0.0817,0.007,0.5849,0.0231
+dermamnist,variance,3,0.8328,0.01,0.96,0.0025,0.0833,0.0073,0.5863,0.0223
+dermamnist,variance_inv,3,0.8306,0.0129,0.9595,0.0025,0.0582,0.01,0.5604,0.0238
+dermamnist,mc_dropout,3,0.8269,0.0111,0.9547,0.0029,0.1073,0.0081,0.7271,0.0223
+dermamnist,ts_only,3,0.8279,0.0126,0.9543,0.003,0.0846,0.0091,0.6009,0.015
+dermamnist,ts_entropy,3,0.8326,0.0096,0.9603,0.0027,0.0621,0.0085,0.5175,0.0168
