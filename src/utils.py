@@ -30,6 +30,51 @@ def get_device(prefer_cuda: bool = True) -> torch.device:
     return torch.device("cpu")
 
 
+# ── File-naming policy (backbone-aware) ────────────────────────────────────
+# Phase 5 adds a second backbone (EfficientNet-B0). To avoid colliding with the
+# existing ResNet-18 artifacts AND to keep every Phase 1-4 file/glob working
+# unchanged, ResNet-18 keeps its original "archless" result/prediction stem and
+# its `{ds}_resnet18{tag}.pth` checkpoint name; any OTHER backbone gets an
+# explicit `_{arch}` infix. So:
+#   checkpoint_filename("pathmnist", "resnet18")          -> pathmnist_resnet18.pth     (existing)
+#   checkpoint_filename("pathmnist", "effb0", "_seed0")   -> pathmnist_effb0_seed0.pth  (new)
+#   result_stem("pathmnist", "resnet18", "_seed0")        -> pathmnist_seed0            (existing)
+#   result_stem("pathmnist", "effb0", "_seed0")           -> pathmnist_effb0_seed0      (new)
+# Everything that consumes ResNet-18 files (build_full_matrix, aggregate_seeds,
+# significance, the tracker) therefore needs no change; EfficientNet lives in a
+# parallel namespace.
+
+DEFAULT_ARCH = "resnet18"
+
+
+def checkpoint_filename(dataset_key: str, arch: str = DEFAULT_ARCH,
+                        tag: str = "") -> str:
+    """Checkpoint filename for a (dataset, backbone, tag). See policy note above."""
+    return f"{dataset_key}_{arch}{tag}.pth"
+
+
+def result_stem(dataset_key: str, arch: str = DEFAULT_ARCH, tag: str = "") -> str:
+    """
+    Stem for result/prediction files: `<stem>_weighted_tta.csv`, `<stem>_labels.npy`,
+    etc. ResNet-18 keeps the original archless stem for backward compatibility;
+    other backbones get an `_{arch}` infix.
+    """
+    if arch == DEFAULT_ARCH:
+        return f"{dataset_key}{tag}"
+    return f"{dataset_key}_{arch}{tag}"
+
+
+def default_ckpt_tag(arch: str, seed: int, canonical_seed: int = 42) -> str:
+    """
+    The tag the multi-backbone runner uses for a (arch, seed). ResNet-18 at the
+    canonical seed (42) writes the untagged canonical files (so the headline
+    Phase 1-3 numbers stay put); every other (arch, seed) is seed-tagged.
+    """
+    if arch == DEFAULT_ARCH and seed == canonical_seed:
+        return ""
+    return f"_seed{seed}"
+
+
 def save_checkpoint(model: torch.nn.Module, path: str | Path,
                     extra: Dict[str, Any] | None = None) -> None:
     """Save model state_dict plus any metadata we want to keep with the weights."""

@@ -1,0 +1,24 @@
+{
+  "dataset": "bloodmnist",
+  "arch": "effb0",
+  "modality": "Blood Cell Microscopy",
+  "student": "S1",
+  "task": "multi-class",
+  "seed": 0,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\bloodmnist_effb0_seed0.pth",
+  "train_log_csv": "results\\bloodmnist_effb0_seed0_train_log.csv",
+  "reliability_figure": "figures\\reliability\\bloodmnist_effb0_seed0_baseline.png",
+  "curves_figure": "figures\\curves\\bloodmnist_effb0_seed0_train_curves.png",
+  "benchmark_acc": 0.969,
+  "test_metrics": {
+    "accuracy": 0.9830458930137387,
+    "auc_roc": 0.9992661430177059,
+    "ece": 0.00929356680666278,
+    "nll": 0.06576782464981079
+  },
+  "training_time_minutes": 12.61
+}

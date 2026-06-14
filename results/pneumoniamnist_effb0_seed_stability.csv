@@ -1,0 +1,12 @@
+dataset,arch,strategy,n_seeds,accuracy_mean,accuracy_std,auc_roc_mean,auc_roc_std,ece_mean,ece_std,nll_mean,nll_std
+pneumoniamnist,effb0,baseline,3,0.867,0.0127,0.9765,0.0095,0.0722,0.0196,0.3987,0.0731
+pneumoniamnist,effb0,maxprob,3,0.8659,0.0124,0.9767,0.0094,0.0811,0.0154,0.4098,0.0755
+pneumoniamnist,effb0,entropy,3,0.8649,0.0118,0.9768,0.0095,0.0829,0.0158,0.4179,0.0769
+pneumoniamnist,effb0,variance,3,0.8627,0.014,0.9753,0.0106,0.0967,0.0191,0.4633,0.0861
+pneumoniamnist,effb0,variance_inv,3,0.8574,0.014,0.9729,0.0098,0.0565,0.0156,0.379,0.0591
+pneumoniamnist,effb0,mc_dropout,3,0.8793,0.0113,0.9586,0.0122,0.0949,0.0164,0.5383,0.0925
+pneumoniamnist,effb0,ts_only,3,0.8787,0.0114,0.9584,0.0122,0.0941,0.0197,0.5181,0.1192
+pneumoniamnist,effb0,ts_entropy,3,0.8638,0.0131,0.977,0.0097,0.0825,0.0174,0.4093,0.0822
+pneumoniamnist,effb0,top3,3,0.8515,0.0152,0.9669,0.0055,0.1225,0.0208,0.8236,0.117
+pneumoniamnist,effb0,top5,3,0.8622,0.0127,0.9672,0.0076,0.1081,0.0209,0.6615,0.1106
+pneumoniamnist,effb0,top7,3,0.867,0.0112,0.9667,0.0072,0.0954,0.0184,0.5803,0.09

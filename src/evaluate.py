@@ -31,8 +31,8 @@ from .mc_dropout import mc_dropout_per_pass_probs, mc_dropout_fuse, mc_dropout_p
 from .metrics import compute_all_metrics
 from .perf import measure_ms_per_image
 from .temperature import fit_temperature, predict_probs_with_temperature
-from .tta import (FUSION_FNS, fuse, softmax_np, tta_per_view_logits,
-                  tta_per_view_probs)
+from .tta import (FUSION_FNS, TOP_K_VALUES, fuse, fuse_top_k, softmax_np,
+                  top_k_strategy, tta_per_view_logits, tta_per_view_probs)
 from .utils import set_seed
 
 # All strategies in tracker / paper column order.
@@ -44,14 +44,24 @@ ALL_STRATEGIES: List[str] = [
 _AUG_FUSIONS = ["baseline", "maxprob", "entropy", "variance", "variance_inv"]
 
 
+def strategies_in_order(top_ks: Tuple[int, ...] = ()) -> List[str]:
+    """The 8 core strategies, then the requested Top-K columns (top3/top5/top7)."""
+    return ALL_STRATEGIES + [top_k_strategy(k) for k in top_ks]
+
+
 def run_all_strategies(model: nn.Module, dataset_name: str, device, *,
                        n_views: int = 10, seed: int = 42, batch_size: int = 64,
                        img_size: int = 64, num_workers: int = 2,
                        data_root: str = "./data", mc_T: int = 20, mc_p: float = 0.2,
-                       measure_time: bool = True
+                       measure_time: bool = True,
+                       top_ks: Tuple[int, ...] = TOP_K_VALUES
                        ) -> Tuple[Dict[str, Dict], Dict[str, np.ndarray], np.ndarray, float, int]:
     """
-    Evaluate all 8 strategies on one dataset at a fixed N.
+    Evaluate all 8 strategies (+ Top-K columns) on one dataset at a fixed N.
+
+    top_ks: which Top-K (hard entropy filter) columns to add, e.g. (3, 5, 7).
+            Pass () to skip them. They reuse the same per-view forward passes as
+            the soft fusions, so they cost no extra inference.
 
     Returns (results, fused_probs, labels, T, n_test):
       results     : {strategy: {accuracy, auc_roc, ece, nll, inf_ms}}
@@ -88,6 +98,13 @@ def run_all_strategies(model: nn.Module, dataset_name: str, device, *,
         fused[strat] = fp
         results[strat] = compute_all_metrics(fp, labels, task=cfg.task)
 
+    # Top-K (hard entropy filter) — reuses the same per-view probs (no extra fwd).
+    for k in top_ks:
+        name = top_k_strategy(k)
+        fp_k = fuse_top_k(probs_T1, k)
+        fused[name] = fp_k
+        results[name] = compute_all_metrics(fp_k, labels, task=cfg.task)
+
     # ts_entropy: entropy fusion on the temperature-scaled per-view probs
     fp_tse = FUSION_FNS["entropy"](probs_Ts)
     fused["ts_entropy"] = fp_tse
@@ -107,14 +124,15 @@ def run_all_strategies(model: nn.Module, dataset_name: str, device, *,
     results["ts_only"] = compute_all_metrics(fp_ts, ts_labels, task=cfg.task)
 
     # ── Inference time per strategy ──
-    for strat in ALL_STRATEGIES:
+    for strat in results:
         results[strat]["inf_ms"] = None
     if measure_time:
-        # N-view forward cost is shared by all augmentation fusions (incl ts_entropy);
-        # fusion itself is microseconds, so they report the same forward-dominated time.
+        # N-view forward cost is shared by all augmentation fusions (incl ts_entropy
+        # and every Top-K column); fusion itself is microseconds, so they report the
+        # same forward-dominated time.
         nview_ms = measure_ms_per_image(
             lambda: tta_per_view_logits(model, tta_loader, device, augs), n_test, device)
-        for strat in _AUG_FUSIONS + ["ts_entropy"]:
+        for strat in _AUG_FUSIONS + ["ts_entropy"] + [top_k_strategy(k) for k in top_ks]:
             results[strat]["inf_ms"] = nview_ms
         results["mc_dropout"]["inf_ms"] = measure_ms_per_image(
             lambda: mc_dropout_per_pass_probs(model, test_loader, device, T=mc_T, p=mc_p),

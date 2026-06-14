@@ -1,0 +1,24 @@
+{
+  "dataset": "dermamnist",
+  "arch": "effb0",
+  "modality": "Dermatoscope",
+  "student": "S2",
+  "task": "multi-class",
+  "seed": 123,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\dermamnist_effb0_seed123.pth",
+  "train_log_csv": "results\\dermamnist_effb0_seed123_train_log.csv",
+  "reliability_figure": "figures\\reliability\\dermamnist_effb0_seed123_baseline.png",
+  "curves_figure": "figures\\curves\\dermamnist_effb0_seed123_train_curves.png",
+  "benchmark_acc": 0.734,
+  "test_metrics": {
+    "accuracy": 0.8254364089775561,
+    "auc_roc": 0.9524518490526886,
+    "ece": 0.08672394706424036,
+    "nll": 0.6186830401420593
+  },
+  "training_time_minutes": 7.51
+}

@@ -44,16 +44,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.augmentations import get_augmentation_pipeline
 from src.config import all_dataset_keys, get_config
 from src.data import get_dataset, normalize_imagenet
-from src.model import build_resnet18
-from src.tta import entropy_weights
-from src.utils import get_device, load_checkpoint, set_seed
+from src.model import build_model, ARCH_LABELS, ARCHITECTURES
+from src.tta import entropy_weights, top_k_keep_indices
+from src.utils import get_device, load_checkpoint, set_seed, checkpoint_filename
 from src.visualize import confidence_strip
 
 DEFAULT_DATASETS = ["pathmnist", "dermamnist", "pneumoniamnist", "bloodmnist"]
 
 
 def _view_weights_for_image(model, img, augs, device):
-    """Run the N augmented views of one [0,1] image; return (views, names, weights)."""
+    """Run the N augmented views of one [0,1] image; return (views, names, weights, per_view)."""
     views, names, probs = [], [], []
     model.eval()
     with torch.no_grad():
@@ -65,7 +65,7 @@ def _view_weights_for_image(model, img, augs, device):
             names.append(aug_name)
     per_view = np.stack(probs, axis=0)[:, None, :]          # (N, 1, C)
     weights = entropy_weights(per_view)[:, 0]               # (N,)
-    return views, names, weights
+    return views, names, weights, per_view
 
 
 def _pick_random_correct(model, dataset, device, seed):
@@ -100,7 +100,7 @@ def _pick_spread(model, dataset, device, augs, max_scan, n_candidates, min_conf)
     candidates.sort(key=lambda c: -c[0])
     best = None
     for _conf, idx, img in candidates[:n_candidates]:
-        _, _, w = _view_weights_for_image(model, img, augs, device)
+        _, _, w, _ = _view_weights_for_image(model, img, augs, device)
         spread = float(w.max() - w.min())
         if best is None or spread > best[0]:
             best = (spread, idx, img)
@@ -109,12 +109,12 @@ def _pick_spread(model, dataset, device, augs, max_scan, n_candidates, min_conf)
 
 def make_strips(dataset_name, args, device) -> int:
     cfg = get_config(dataset_name)
-    ckpt = Path(args.checkpoints_dir) / f"{cfg.key}_resnet18.pth"
+    ckpt = Path(args.checkpoints_dir) / checkpoint_filename(cfg.key, args.arch)
     if not ckpt.exists():
         print(f"  [skip] {cfg.key}: checkpoint not found at {ckpt}")
         return 0
 
-    model = build_resnet18(num_classes=cfg.n_classes, pretrained=False)
+    model = build_model(args.arch, num_classes=cfg.n_classes, pretrained=False)
     load_checkpoint(model, ckpt, device=device)
     model.to(device)
 
@@ -137,15 +137,20 @@ def make_strips(dataset_name, args, device) -> int:
             print(f"  [skip] {cfg.key} sample {k+1}: no correct image found")
             continue
 
-        views, names, weights = _view_weights_for_image(model, img, augs, device)
-        save_path = Path(args.figures_dir) / "strip" / f"{cfg.key}_sample{k+1}.pdf"
+        views, names, weights, per_view = _view_weights_for_image(model, img, augs, device)
+        # Gold-outline the Top-K (lowest-entropy) views Top-K TTA would keep.
+        gold = (top_k_keep_indices(per_view, args.gold_k)[:, 0].tolist()
+                if args.gold_k and args.gold_k > 0 else None)
+        arch_sfx = "" if args.arch == "resnet18" else f"_{args.arch}"
+        save_path = Path(args.figures_dir) / "strip" / f"{cfg.key}{arch_sfx}_sample{k+1}.pdf"
         confidence_strip(views, weights, names,
                          dataset_name=f"{cfg.medmnist_class} ({cfg.modality}) "
                                       f"- Sample {k+1} (idx={idx})",
-                         save_path=save_path)
+                         save_path=save_path, highlight_idx=gold)
         spread = float(weights.max() - weights.min())
+        gtag = f", gold Top-{args.gold_k}={gold}" if gold else ""
         print(f"  [ok]   {cfg.key} sample {k+1}: idx={idx}, "
-              f"weight spread={spread:.3f} -> {save_path}")
+              f"weight spread={spread:.3f}{gtag} -> {save_path}")
         made += 1
         if args.select == "spread":
             break  # spread mode produces a single hero strip
@@ -156,6 +161,11 @@ def main() -> int:
     p = argparse.ArgumentParser(description="Generate Augmentation Confidence Strips (§3.5 / Addition 3).")
     p.add_argument("--datasets", nargs="+", default=DEFAULT_DATASETS,
                    choices=all_dataset_keys())
+    p.add_argument("--arch", default="resnet18", choices=list(ARCHITECTURES),
+                   help="Backbone: resnet18 (default) or effb0.")
+    p.add_argument("--gold-k", type=int, default=5,
+                   help="Gold-outline the Top-K lowest-entropy (kept) bars to tie "
+                        "Top-K TTA to Fig 1 (VMV plan). 0 disables. Default 5.")
     p.add_argument("--n-images", type=int, default=3,
                    help="Images per modality (addendum: 3).")
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2],

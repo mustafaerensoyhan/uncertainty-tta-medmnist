@@ -424,6 +424,41 @@ McNemar -> `results/significance.csv`; Wilcoxon -> `results/significance_wilcoxo
 (needs all 6 datasets for real power). Don't commit these until all 6 are in —
 partial runs are misleading.
 
+## Phase 5 additions — second backbone, Top-K TTA, one-command runs
+
+Phase 5 adds an EfficientNet-B0 backbone, a Top-K TTA fusion family, an inference-time
+benchmark, a runnable variance sanity check, and a unified runner — all without changing
+the published ResNet-18 numbers. Full write-up: [`docs/PHASE5_ADDITIONS.md`](docs/PHASE5_ADDITIONS.md).
+The short version:
+
+```bash
+# Every training/eval script now takes --arch {resnet18,effb0} (default resnet18,
+# so all the commands above are unchanged). EfficientNet uses the same recipe.
+python -m scripts.train_baseline   --dataset pathmnist --arch effb0 --ckpt-tag _seed42
+python -m scripts.run_weighted_tta --dataset pathmnist --arch effb0 --ckpt-tag _seed42
+
+# Top-K TTA (hard entropy filter: keep K lowest-entropy views, average) runs by
+# default in run_weighted_tta as top3/top5/top7. Disable with --no-top-k.
+python -m scripts.run_weighted_tta --dataset bloodmnist --top-k 5
+
+# Prove the variance-weighting direction (VMV Task 2); exits 0 if code matches.
+python -m scripts.variance_sanity_check
+
+# Same-machine latency surface across arch x N x method -> results/inference_benchmark.csv
+python -m scripts.benchmark_inference --datasets pathmnist --arch resnet18
+
+# ONE command for the whole pipeline across backbones x datasets x seeds. Always
+# preview with --dry-run first (no GPU/data needed); writes results/run_manifest.csv.
+python -m scripts.run_all --models resnet18 effb0 --seeds 42 0 123 --phases all --dry-run
+python -m scripts.run_all --models effb0 --seeds 0 42 123 --phases train weighted aggregate
+```
+
+Naming policy: ResNet-18 at the canonical seed keeps the exact original filenames; EfficientNet
+and seed-tagged runs get a parallel `{ds}_effb0_*` / `{ds}_seedN_*` namespace so nothing collides
+(this also retired the old "seed run clobbered the baseline JSON" gotcha). The confidence strips
+(`make_confidence_strips --gold-k 5`) now gold-outline the Top-K kept views, tying Figure 1 to the
+Top-K strategy.
+
 ## No local GPU? Use the Kaggle notebook
 
 Open `notebooks/kaggle_baseline.ipynb` in Kaggle (Settings → Accelerator → GPU T4)
@@ -603,6 +638,16 @@ is large enough to always contain both classes.
 **Windows: `BrokenPipeError` or freeze during DataLoader iteration**
 Re-run with `--num-workers 0`. The default of 2 works on most Windows setups
 but a minority of Python installs have multiprocessing quirks.
+
+**EfficientNet `mc_dropout` shows ZERO spread in a quick test (no trained checkpoint)**
+Expected, not a bug. An *untrained* EfficientNet-B0 (`pretrained=False`) outputs
+all-zero penultimate features in eval mode (random init + eval-mode BatchNorm
+with default running stats), so dropping them does nothing and MC Dropout has no
+variation. ResNet-18's untrained features are non-zero, so it never shows this.
+With a real trained checkpoint (or after a few train-mode forwards to populate
+BatchNorm stats) the features are non-zero and MC Dropout works normally. Don't
+debug a "broken" hook on an effb0 model that was never trained —
+`tests/test_model_arch.py` pins this behaviour both ways.
 
 **My PR says "Review required" — what do I do?**
 Nothing. Wait for @mustafaerensoyhan to review it. CODEOWNERS makes S1's

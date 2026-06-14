@@ -1,0 +1,24 @@
+{
+  "dataset": "pneumoniamnist",
+  "arch": "effb0",
+  "modality": "Chest X-Ray",
+  "student": "S5",
+  "task": "binary-class",
+  "seed": 123,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\pneumoniamnist_effb0_seed123.pth",
+  "train_log_csv": "results\\pneumoniamnist_effb0_seed123_train_log.csv",
+  "reliability_figure": "figures\\reliability\\pneumoniamnist_effb0_seed123_baseline.png",
+  "curves_figure": "figures\\curves\\pneumoniamnist_effb0_seed123_train_curves.png",
+  "benchmark_acc": 0.856,
+  "test_metrics": {
+    "accuracy": 0.8766025641025641,
+    "auc_roc": 0.9654448827525751,
+    "ece": 0.0935601436365873,
+    "nll": 0.5059878826141357
+  },
+  "training_time_minutes": 4.68
+}

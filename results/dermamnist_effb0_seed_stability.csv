@@ -1,0 +1,12 @@
+dataset,arch,strategy,n_seeds,accuracy_mean,accuracy_std,auc_roc_mean,auc_roc_std,ece_mean,ece_std,nll_mean,nll_std
+dermamnist,effb0,baseline,3,0.8326,0.0101,0.961,0.0022,0.042,0.0022,0.4936,0.0067
+dermamnist,effb0,maxprob,3,0.8326,0.0084,0.9614,0.0022,0.052,0.0031,0.4989,0.0059
+dermamnist,effb0,entropy,3,0.8329,0.0109,0.9617,0.002,0.0573,0.0043,0.5038,0.0057
+dermamnist,effb0,variance,3,0.8326,0.0105,0.9617,0.002,0.0602,0.0043,0.5057,0.0052
+dermamnist,effb0,variance_inv,3,0.8339,0.0108,0.9596,0.0023,0.0259,0.0049,0.4937,0.0078
+dermamnist,effb0,mc_dropout,3,0.8256,0.0068,0.9517,0.0009,0.0809,0.0032,0.6081,0.0067
+dermamnist,effb0,ts_only,3,0.8259,0.0067,0.9517,0.001,0.0606,0.0007,0.5541,0.0057
+dermamnist,effb0,ts_entropy,3,0.8319,0.0101,0.9622,0.0017,0.0389,0.0046,0.4804,0.0051
+dermamnist,effb0,top3,3,0.8324,0.007,0.9547,0.0021,0.1055,0.0015,0.6866,0.0108
+dermamnist,effb0,top5,3,0.8337,0.0088,0.9572,0.0016,0.0887,0.003,0.6129,0.0147
+dermamnist,effb0,top7,3,0.8333,0.0101,0.959,0.0011,0.075,0.0038,0.5624,0.0141

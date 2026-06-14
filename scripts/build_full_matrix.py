@@ -25,7 +25,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.config import all_dataset_keys
-from src.evaluate import ALL_STRATEGIES
+from src.evaluate import strategies_in_order
+from src.tta import TOP_K_VALUES
 
 
 def main() -> int:
@@ -49,9 +50,11 @@ def main() -> int:
 
     df = pd.concat(frames, ignore_index=True)
 
-    # Stable ordering: by dataset (config order), then strategy (paper order).
+    # Stable ordering: by dataset (config order), then strategy (paper order,
+    # core 8 then Top-K). Unknown strategies sort last.
     ds_order = {d: i for i, d in enumerate(all_dataset_keys())}
-    st_order = {s: i for i, s in enumerate(ALL_STRATEGIES)}
+    full_order = strategies_in_order(TOP_K_VALUES)
+    st_order = {s: i for i, s in enumerate(full_order)}
     df["_d"] = df["dataset"].map(ds_order)
     df["_s"] = df["strategy"].map(st_order)
     df = df.sort_values(["_d", "_s"]).drop(columns=["_d", "_s"]).reset_index(drop=True)

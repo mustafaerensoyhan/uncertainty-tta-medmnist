@@ -1,0 +1,24 @@
+{
+  "dataset": "breastmnist",
+  "arch": "effb0",
+  "modality": "Breast Ultrasound",
+  "student": "S3",
+  "task": "binary-class",
+  "seed": 0,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\breastmnist_effb0_seed0.pth",
+  "train_log_csv": "results\\breastmnist_effb0_seed0_train_log.csv",
+  "reliability_figure": "figures\\reliability\\breastmnist_effb0_seed0_baseline.png",
+  "curves_figure": "figures\\curves\\breastmnist_effb0_seed0_train_curves.png",
+  "benchmark_acc": 0.864,
+  "test_metrics": {
+    "accuracy": 0.8205128205128205,
+    "auc_roc": 0.8629908103592314,
+    "ece": 0.06697492721753244,
+    "nll": 0.3784942626953125
+  },
+  "training_time_minutes": 0.48
+}

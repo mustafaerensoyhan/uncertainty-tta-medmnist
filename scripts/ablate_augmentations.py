@@ -33,9 +33,10 @@ from src.augmentations import BASE_AUGMENTATIONS, aug_identity
 from src.config import all_dataset_keys, get_config
 from src.data import get_tta_test_loader
 from src.metrics import compute_all_metrics
-from src.model import build_resnet18
+from src.model import build_model, ARCHITECTURES
 from src.tta import fuse, softmax_np, tta_per_view_logits
-from src.utils import get_device, load_checkpoint, set_seed
+from src.utils import (get_device, load_checkpoint, set_seed,
+                       checkpoint_filename, result_stem)
 
 
 def _pipeline(exclude: str | None):
@@ -57,6 +58,8 @@ def _run(model, loader, device, pipe, strategy, task, seed):
 def main() -> int:
     ap = argparse.ArgumentParser(description="Leave-one-out augmentation ablation (Phase 4).")
     ap.add_argument("--dataset", required=True, choices=all_dataset_keys())
+    ap.add_argument("--arch", default="resnet18", choices=list(ARCHITECTURES),
+                    help="Backbone: resnet18 (default) or effb0.")
     ap.add_argument("--strategy", default="entropy")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--batch-size", type=int, default=64)
@@ -71,11 +74,11 @@ def main() -> int:
 
     cfg = get_config(args.dataset)
     device = get_device(prefer_cuda=not args.cpu)
-    ckpt = Path(args.checkpoints_dir) / f"{cfg.key}_resnet18.pth"
+    ckpt = Path(args.checkpoints_dir) / checkpoint_filename(cfg.key, args.arch)
     if not ckpt.exists():
         print(f"ERROR: checkpoint not found at {ckpt}")
         return 1
-    model = build_resnet18(num_classes=cfg.n_classes, pretrained=False)
+    model = build_model(args.arch, num_classes=cfg.n_classes, pretrained=False)
     load_checkpoint(model, ckpt, device=device)
     model.to(device)
 
@@ -103,7 +106,8 @@ def main() -> int:
                      "d_acc_pp": round(d_acc, 3), "d_ece": round(d_ece, 4)})
 
     df = pd.DataFrame(rows)
-    out = Path(args.results_dir) / f"{cfg.key}_ablation_aug.csv"
+    stem = result_stem(cfg.key, args.arch)
+    out = Path(args.results_dir) / f"{stem}_ablation_aug.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, index=False)
 
@@ -114,7 +118,7 @@ def main() -> int:
     ax.axvline(0, color="grey", lw=0.8)
     ax.set_xlabel("Δ accuracy when removed (pp) — positive = augmentation was harmful")
     ax.set_title(f"{cfg.key} — {args.strategy}: leave-one-out", fontweight="bold")
-    fig_path = Path(args.figures_dir) / "ablation_aug" / f"{cfg.key}_{args.strategy}_loo.pdf"
+    fig_path = Path(args.figures_dir) / "ablation_aug" / f"{stem}_{args.strategy}_loo.pdf"
     fig_path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout(); fig.savefig(fig_path, dpi=300, bbox_inches="tight"); plt.close(fig)
 

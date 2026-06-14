@@ -159,7 +159,8 @@ def accuracy_vs_n(df: pd.DataFrame, save_path: str | Path | None = None,
 
 
 def confidence_strip(views: "list", weights: np.ndarray, aug_names: "list[str]",
-                     dataset_name: str, save_path: str | Path | None = None) -> None:
+                     dataset_name: str, save_path: str | Path | None = None,
+                     highlight_idx: "list[int] | np.ndarray | None" = None) -> None:
     """
     Augmentation Confidence Strip — the VMV visual contribution (proposal §3.5).
 
@@ -174,10 +175,14 @@ def confidence_strip(views: "list", weights: np.ndarray, aug_names: "list[str]",
         aug_names: list of N augmentation names (column labels)
         dataset_name: title suffix, e.g. "PathMNIST (Histology)"
         save_path: where to save the PDF/PNG (figures/strip/<name>_strip.pdf)
+        highlight_idx: optional view indices to gold-outline — the views Top-K
+            TTA would KEEP (the K lowest-entropy views). Visually ties Top-K TTA
+            to Figure 1 at zero extra cost (VMV plan, Implementer 1 Task 5).
     """
     import torch
 
     weights = np.asarray(weights, dtype=np.float64)
+    highlight = set(int(i) for i in highlight_idx) if highlight_idx is not None else set()
     n = len(views)
     fig, axes = plt.subplots(2, n, figsize=(n * 1.6, 3.5),
                              gridspec_kw={"height_ratios": [3, 1.4]})
@@ -207,17 +212,27 @@ def confidence_strip(views: "list", weights: np.ndarray, aug_names: "list[str]",
         ax_img.axis("off")
 
         ax_bar = axes[1, i]
+        kept = i in highlight
+        # Kept (Top-K) bars get a thick gold edge; others keep the navy edge.
         ax_bar.bar(0, weights[i], color=cmap(0.3 + 0.7 * norm_w[i]),
-                   width=0.6, edgecolor="navy", linewidth=0.5)
+                   width=0.6, edgecolor=("gold" if kept else "navy"),
+                   linewidth=(2.6 if kept else 0.5), zorder=3)
         ax_bar.set_ylim(0, weights.max() * 1.15 + 1e-6)
         ax_bar.set_xlim(-0.5, 0.5)
         ax_bar.set_xticks([])
         ax_bar.text(0, weights[i] + weights.max() * 0.03, f"{weights[i]:.2f}",
-                    ha="center", va="bottom", fontsize=7)
+                    ha="center", va="bottom", fontsize=7,
+                    color=("darkgoldenrod" if kept else "black"),
+                    fontweight=("bold" if kept else "normal"))
         if i == 0:
             ax_bar.set_ylabel("weight $w_i$", fontsize=8)
         else:
             ax_bar.set_yticks([])
+
+    if highlight:
+        # Tiny legend cue so the gold outline is self-explanatory in the paper.
+        fig.text(0.5, -0.02, f"gold outline = Top-{len(highlight)} kept (lowest-entropy) views",
+                 ha="center", va="top", fontsize=7, color="darkgoldenrod")
 
     plt.tight_layout()
     if save_path:

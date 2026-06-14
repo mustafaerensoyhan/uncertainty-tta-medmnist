@@ -30,18 +30,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.config import get_config, all_dataset_keys
 from src.data import get_tta_test_loader
-from src.model import build_resnet18
+from src.model import build_model, ARCH_LABELS, ARCHITECTURES
 from src.augmentations import get_augmentation_pipeline
 from src.tta import tta_per_view_probs, fuse_equal_weight
 from src.metrics import compute_all_metrics
 from src.perf import measure_ms_per_image
 from src.visualize import accuracy_vs_n
-from src.utils import set_seed, get_device, load_checkpoint
+from src.utils import (set_seed, get_device, load_checkpoint,
+                       checkpoint_filename, result_stem)
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run standard equal-weight TTA on one dataset.")
     p.add_argument("--dataset", required=True, choices=all_dataset_keys())
+    p.add_argument("--arch", default="resnet18", choices=list(ARCHITECTURES),
+                   help="Backbone: resnet18 (default) or effb0.")
     p.add_argument("--n-views", type=int, nargs="+", default=[5, 10, 20, 50],
                    help="View counts to evaluate (default: 5 10 20 50).")
     p.add_argument("--batch-size", type=int, default=64)
@@ -67,15 +70,16 @@ def main() -> int:
     cfg = get_config(args.dataset)
     device = get_device(prefer_cuda=not args.cpu)
 
-    ckpt_path = Path(args.checkpoints_dir) / f"{cfg.key}_resnet18.pth"
+    ckpt_path = Path(args.checkpoints_dir) / checkpoint_filename(cfg.key, args.arch)
     if not ckpt_path.exists():
         print(f"ERROR: checkpoint not found at {ckpt_path}")
         print("Run Phase 1 first:  python -m scripts.train_baseline --dataset "
-              f"{cfg.key}")
+              f"{cfg.key} --arch {args.arch}")
         return 1
 
     print(f"\n{'='*70}")
     print(f"  Standard TTA: {cfg.modality}  ({cfg.key})")
+    print(f"  Backbone      : {ARCH_LABELS[args.arch]}")
     print(f"  Task          : {cfg.task} ({cfg.n_classes} classes)")
     print(f"  Owner         : {cfg.student}")
     print(f"  Device        : {device}")
@@ -84,7 +88,7 @@ def main() -> int:
     print(f"{'='*70}\n")
 
     # Load model + checkpoint
-    model = build_resnet18(num_classes=cfg.n_classes, pretrained=False)
+    model = build_model(args.arch, num_classes=cfg.n_classes, pretrained=False)
     load_checkpoint(model, ckpt_path, device=device)
     model.to(device)
 
@@ -145,15 +149,17 @@ def main() -> int:
 
     # Save results CSV
     df = pd.DataFrame(rows)
-    results_path = Path(args.results_dir) / f"{cfg.key}_standard_tta.csv"
+    df.insert(1, "arch", args.arch)
+    stem = result_stem(cfg.key, args.arch)
+    results_path = Path(args.results_dir) / f"{stem}_standard_tta.csv"
     results_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(results_path, index=False)
     print(f"Results saved to: {results_path}")
 
     # Accuracy-vs-N plot
-    fig_path = Path(args.figures_dir) / "tta" / f"{cfg.key}_accuracy_vs_n.png"
+    fig_path = Path(args.figures_dir) / "tta" / f"{stem}_accuracy_vs_n.png"
     accuracy_vs_n(df, save_path=fig_path,
-                  title=f"{cfg.modality} — standard TTA: accuracy vs N")
+                  title=f"{cfg.modality} ({ARCH_LABELS[args.arch]}) — standard TTA: accuracy vs N")
     print(f"Plot saved to:    {fig_path}")
 
     # Summary verdict

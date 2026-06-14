@@ -1,0 +1,12 @@
+dataset,arch,strategy,n_seeds,accuracy_mean,accuracy_std,auc_roc_mean,auc_roc_std,ece_mean,ece_std,nll_mean,nll_std
+breastmnist,effb0,baseline,3,0.8376,0.0353,0.8615,0.0747,0.0786,0.0287,0.4073,0.0894
+breastmnist,effb0,maxprob,3,0.8376,0.0417,0.8615,0.0745,0.0713,0.0174,0.4014,0.0889
+breastmnist,effb0,entropy,3,0.8376,0.0417,0.8618,0.0748,0.0692,0.0225,0.4005,0.091
+breastmnist,effb0,variance,3,0.8333,0.0357,0.8448,0.084,0.0522,0.0221,0.4006,0.0819
+breastmnist,effb0,variance_inv,3,0.765,0.0289,0.8177,0.0721,0.1252,0.03,0.5099,0.0776
+breastmnist,effb0,mc_dropout,3,0.8269,0.017,0.8248,0.101,0.0649,0.0295,0.4155,0.0951
+breastmnist,effb0,ts_only,3,0.8205,0.0128,0.8248,0.1002,0.0714,0.0337,0.417,0.0978
+breastmnist,effb0,ts_entropy,3,0.8376,0.0417,0.8624,0.0738,0.0686,0.0137,0.3939,0.0756
+breastmnist,effb0,top3,3,0.8269,0.0294,0.8562,0.0697,0.0598,0.0205,0.4077,0.0662
+breastmnist,effb0,top5,3,0.8333,0.0385,0.8539,0.0792,0.0585,0.0143,0.3915,0.082
+breastmnist,effb0,top7,3,0.8333,0.0385,0.8558,0.0831,0.0476,0.0352,0.3902,0.0911

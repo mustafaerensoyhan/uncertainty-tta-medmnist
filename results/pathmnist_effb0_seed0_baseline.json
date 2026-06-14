@@ -1,0 +1,24 @@
+{
+  "dataset": "pathmnist",
+  "arch": "effb0",
+  "modality": "Colon Pathology (Histology)",
+  "student": "S1",
+  "task": "multi-class",
+  "seed": 0,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\pathmnist_effb0_seed0.pth",
+  "train_log_csv": "results\\pathmnist_effb0_seed0_train_log.csv",
+  "reliability_figure": "figures\\reliability\\pathmnist_effb0_seed0_baseline.png",
+  "curves_figure": "figures\\curves\\pathmnist_effb0_seed0_train_curves.png",
+  "benchmark_acc": 0.881,
+  "test_metrics": {
+    "accuracy": 0.9356545961002786,
+    "auc_roc": 0.9945819135874479,
+    "ece": 0.040638925085326794,
+    "nll": 0.289041131734848
+  },
+  "training_time_minutes": 92.75
+}

@@ -30,10 +30,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.config import get_config, all_dataset_keys
 from src.data import get_dataloaders
-from src.model import build_resnet18, count_parameters
+from src.model import build_model, count_parameters, ARCH_LABELS, ARCHITECTURES
 from src.train import fit, evaluate, predict_probs
 from src.utils import (set_seed, get_device, save_json, print_tracker_row,
-                       load_checkpoint)
+                       load_checkpoint, checkpoint_filename, result_stem)
 from src.visualize import reliability_diagram, training_curves
 
 
@@ -41,6 +41,9 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Train ResNet-18 baseline on one MedMNIST dataset.")
     p.add_argument("--dataset", required=True, choices=all_dataset_keys(),
                    help="Dataset key (e.g. pathmnist, bloodmnist).")
+    p.add_argument("--arch", default="resnet18", choices=list(ARCHITECTURES),
+                   help="Backbone. resnet18 (default, Phase 1-4) or effb0 "
+                        "(EfficientNet-B0, Phase 5 VMV plan — identical hyperparams).")
     p.add_argument("--epochs", type=int, default=30,
                    help="Training epochs (proposal: 30).")
     p.add_argument("--batch-size", type=int, default=64)
@@ -70,6 +73,7 @@ def main() -> int:
     print(f"\n{'='*70}")
     print(f"  Training baseline: {cfg.modality}")
     print(f"  Dataset key       : {cfg.key}")
+    print(f"  Backbone          : {ARCH_LABELS[args.arch]} ({args.arch})")
     print(f"  Task              : {cfg.task} ({cfg.n_classes} classes)")
     print(f"  Channels (native) : {cfg.n_channels} → converted to 3 (ImageNet)")
     print(f"  Owner             : {cfg.student}")
@@ -92,11 +96,17 @@ def main() -> int:
     print(f"  train batches: {len(train_loader)} | val: {len(val_loader)} | test: {len(test_loader)}")
 
     # Model
-    model = build_resnet18(num_classes=cfg.n_classes, pretrained=True)
-    print(f"  ResNet-18 parameters: {count_parameters(model):,}\n")
+    model = build_model(args.arch, num_classes=cfg.n_classes, pretrained=True)
+    print(f"  {ARCH_LABELS[args.arch]} parameters: {count_parameters(model):,}\n")
+
+    # Arch-aware file stem: resnet18 keeps the original archless names so all
+    # Phase 1-4 artifacts are unchanged; effb0 / seed-tagged runs get a namespaced
+    # stem so they never clobber the canonical files (removes the §7 git gotcha).
+    stem = result_stem(cfg.key, args.arch, args.ckpt_tag)
 
     # Train
-    ckpt_path = Path(args.checkpoints_dir) / f"{cfg.key}_resnet18{args.ckpt_tag}.pth"
+    ckpt_path = Path(args.checkpoints_dir) / checkpoint_filename(
+        cfg.key, args.arch, args.ckpt_tag)
     start = time.perf_counter()
     print(f"Training for {args.epochs} epochs (best-val checkpoint saved to {ckpt_path})\n")
     _, train_log = fit(model, train_loader, val_loader, cfg=cfg, device=device,
@@ -106,7 +116,7 @@ def main() -> int:
 
     # Save per-epoch training log as CSV — useful for paper supplementary
     # and for diagnosing convergence issues across the team's 6 runs.
-    log_path = Path(args.results_dir) / f"{cfg.key}_train_log.csv"
+    log_path = Path(args.results_dir) / f"{stem}_train_log.csv"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(train_log).to_csv(log_path, index=False)
     print(f"Training log saved to: {log_path}")
@@ -122,27 +132,29 @@ def main() -> int:
     test_metrics = compute_all_metrics(test_probs, test_labels, task=cfg.task)
 
     # Generate figures — reliability diagram + training curves
-    reliab_path = Path(args.figures_dir) / "reliability" / f"{cfg.key}_baseline.png"
-    curves_path = Path(args.figures_dir) / "curves" / f"{cfg.key}_train_curves.png"
+    reliab_path = Path(args.figures_dir) / "reliability" / f"{stem}_baseline.png"
+    curves_path = Path(args.figures_dir) / "curves" / f"{stem}_train_curves.png"
     reliability_diagram(
         test_probs, test_labels, n_bins=10,
         save_path=reliab_path,
-        title=f"{cfg.modality} baseline — ECE={test_metrics['ece']:.3f}",
+        title=f"{cfg.modality} {ARCH_LABELS[args.arch]} baseline — ECE={test_metrics['ece']:.3f}",
     )
     training_curves(
         train_log, save_path=curves_path,
-        title=f"{cfg.modality} — ResNet-18 training",
+        title=f"{cfg.modality} — {ARCH_LABELS[args.arch]} training",
     )
     print(f"Reliability diagram saved to: {reliab_path}")
     print(f"Training curves saved to:   {curves_path}")
 
     # Save metrics
-    results_path = Path(args.results_dir) / f"{cfg.key}_baseline.json"
+    results_path = Path(args.results_dir) / f"{stem}_baseline.json"
     save_json({
         "dataset": cfg.key,
+        "arch": args.arch,
         "modality": cfg.modality,
         "student": cfg.student,
         "task": cfg.task,
+        "seed": args.seed,
         "epochs": args.epochs,
         "batch_size": args.batch_size,
         "lr": args.lr,
@@ -160,13 +172,25 @@ def main() -> int:
     test_acc = test_metrics["accuracy"]
     delta = test_acc - cfg.benchmark_acc
     inside_tolerance = abs(delta) <= 0.02
-    flag = "✓ within ±2% tolerance" if inside_tolerance else "⚠ OUTSIDE ±2% tolerance — investigate"
+    # The benchmark targets in config.py are the published ResNet-18 figures, so
+    # the ±2% gate only makes sense as a hard pass/fail for resnet18 (where it
+    # catches genuine training failures). For any other backbone it's purely
+    # informational — a fresh backbone isn't expected to hit ResNet's exact
+    # number, and flagging it as a failure made run_all stop / log false FAILs.
+    if args.arch == "resnet18":
+        flag = "✓ within ±2% tolerance" if inside_tolerance else "⚠ OUTSIDE ±2% tolerance — investigate"
+    else:
+        flag = (f"✓ within ±2% of the ResNet-18 benchmark ({ARCH_LABELS[args.arch]})"
+                if inside_tolerance else
+                f"ℹ {delta*100:+.1f}% vs the ResNet-18 benchmark ({ARCH_LABELS[args.arch]}, "
+                f"different backbone — informational, not a failure)")
     print(f"\nTest acc = {test_acc*100:.2f}% | benchmark = {cfg.benchmark_acc*100:.1f}% | Δ = {delta*100:+.2f}% | {flag}")
 
     print_tracker_row(cfg.key, cfg.student, test_metrics, str(ckpt_path))
     print(f"\nMetrics JSON saved to: {results_path}")
 
-    return 0 if inside_tolerance else 1
+    # Only the canonical ResNet-18 baseline uses the tolerance as a hard gate.
+    return 0 if (inside_tolerance or args.arch != "resnet18") else 1
 
 
 if __name__ == "__main__":

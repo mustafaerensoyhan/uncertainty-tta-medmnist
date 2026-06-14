@@ -37,14 +37,20 @@ def _find_head(model: nn.Module) -> nn.Module:
     """
     Return the classifier head module to inject dropout *before*.
 
-    For build_resnet18 this is `model.fc` (a bare Linear, or Sequential(Dropout,
-    Linear)). We hook the head so dropout is applied to the pooled feature vector
-    feeding the classifier.
+    ResNet-18 exposes the head as `model.fc` (a bare Linear, or
+    Sequential(Dropout, Linear)); EfficientNet-B0 exposes it as
+    `model.classifier` (Sequential(Dropout, Linear)). In both cases the head's
+    first positional input is the pooled+flattened feature vector, so the same
+    forward pre-hook applies dropout to the classifier's input features
+    regardless of backbone.
     """
     if hasattr(model, "fc"):
         return model.fc
+    if hasattr(model, "classifier"):
+        return model.classifier
     raise AttributeError(
-        "Model has no .fc head; pass a ResNet-style model or adapt _find_head."
+        "Model has no .fc or .classifier head; pass a ResNet/EfficientNet-style "
+        "model or adapt _find_head."
     )
 
 

@@ -35,9 +35,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.config import all_dataset_keys, get_config
 from src.data import get_dataloaders
 from src.metrics import compute_all_metrics
-from src.model import build_resnet18
+from src.model import build_model, ARCHITECTURES
 from src.train import predict_probs
-from src.utils import get_device, load_checkpoint, save_json, set_seed
+from src.utils import (get_device, load_checkpoint, save_json, set_seed,
+                       checkpoint_filename, result_stem)
 from src.visualize import reliability_diagram
 
 
@@ -48,16 +49,16 @@ def _fmt(m):
 
 def eval_one(dataset_name: str, args, device) -> int:
     cfg = get_config(dataset_name)
-    ckpt = Path(args.checkpoints_dir) / f"{cfg.key}_resnet18.pth"
+    ckpt = Path(args.checkpoints_dir) / checkpoint_filename(cfg.key, args.arch)
     if not ckpt.exists():
         print(f"[skip] {cfg.key}: checkpoint not found at {ckpt}")
         return 1
 
-    json_path = Path(args.results_dir) / f"{cfg.key}_baseline.json"
+    json_path = Path(args.results_dir) / f"{result_stem(cfg.key, args.arch)}_baseline.json"
     old = json.load(open(json_path)) if json_path.exists() else {}
     old_metrics = old.get("test_metrics")
 
-    model = build_resnet18(num_classes=cfg.n_classes, pretrained=False)
+    model = build_model(args.arch, num_classes=cfg.n_classes, pretrained=False)
     load_checkpoint(model, ckpt, device=device)
     model.to(device)
 
@@ -86,7 +87,7 @@ def eval_one(dataset_name: str, args, device) -> int:
         return 0
 
     # Regenerate the reliability diagram to match the corrected ECE.
-    reliab_path = Path(args.figures_dir) / "reliability" / f"{cfg.key}_baseline.png"
+    reliab_path = Path(args.figures_dir) / "reliability" / f"{result_stem(cfg.key, args.arch)}_baseline.png"
     if not args.no_figure:
         reliability_diagram(probs, labels, n_bins=10, save_path=reliab_path,
                             title=f"{cfg.modality} baseline — ECE={new_metrics['ece']:.3f}")
@@ -119,6 +120,8 @@ def main() -> int:
     p.add_argument("--compare", action="store_true", help="Preview old vs new, don't write.")
     p.add_argument("--dry-run", action="store_true", help="Alias for --compare.")
     p.add_argument("--no-figure", action="store_true", help="Skip reliability diagram.")
+    p.add_argument("--arch", default="resnet18", choices=list(ARCHITECTURES),
+                   help="Backbone: resnet18 (default) or effb0.")
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--img-size", type=int, default=64, choices=[28, 64])
     p.add_argument("--num-workers", type=int, default=0,

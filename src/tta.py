@@ -20,6 +20,7 @@ view is normalized with ImageNet statistics before the forward pass.
 
 from __future__ import annotations
 
+from functools import partial
 from typing import List, Tuple
 
 import numpy as np
@@ -209,9 +210,62 @@ def fuse_variance_inv(per_view_probs: np.ndarray, eps: float = 1e-6) -> np.ndarr
     return _weighted_average(per_view_probs, 1.0 / (var + eps))
 
 
-# Registry of probability-fusion strategies — everything that reduces a cached
-# (N, S, C) array. MC Dropout is intentionally NOT here: it needs its own
-# stochastic forward passes (src/mc_dropout.py) and is dispatched separately.
+# ── Top-K TTA (Phase 5 / VMV plan): hard entropy filter ────────────────────
+# Motivated by the confidence strips (Fig 1): entropy weighting assigns near-zero
+# weight to systematically distrusted augmentations (e.g. flips of chest X-rays).
+# Top-K makes that filtering EXPLICIT and inspectable — instead of softly
+# down-weighting low-confidence views, it discards all but the K lowest-entropy
+# (most confident) views and averages them equally. We evaluate K ∈ {3,5,7} at
+# N=10. Like the soft fusions it is a pure reduction over the cached (N,S,C)
+# per-view probabilities, so it adds no forward passes.
+
+def top_k_keep_indices(per_view_probs: np.ndarray, k: int,
+                       eps: float = 1e-12) -> np.ndarray:
+    """
+    Indices of the K lowest-entropy (most confident) views per sample.
+
+    per_view_probs: (N, S, C). Returns an (k_eff, S) int array, where
+    k_eff = clip(k, 1, N). Column s lists the kept view indices for sample s,
+    ordered from most to least confident. Exposed so the confidence strip can
+    gold-outline the views Top-K would keep (VMV plan, Implementer 1 Task 5).
+    """
+    n_views = per_view_probs.shape[0]
+    k_eff = max(1, min(int(k), n_views))
+    entropy = -np.sum(per_view_probs * np.log(per_view_probs + eps), axis=2)  # (N, S)
+    # argsort ascending => lowest entropy first; take the first k_eff rows.
+    return np.argsort(entropy, axis=0, kind="stable")[:k_eff, :]              # (k_eff, S)
+
+
+def fuse_top_k(per_view_probs: np.ndarray, k: int, eps: float = 1e-12) -> np.ndarray:
+    """
+    Top-K fusion: keep the K lowest-entropy views per sample and average them.
+
+    Args:
+        per_view_probs: (N, S, C)
+        k: number of views to keep (clipped to [1, N]).
+    Returns:
+        fused probabilities (S, C) — a mean of K simplex vectors, so still on
+        the simplex.
+    """
+    keep = top_k_keep_indices(per_view_probs, k, eps=eps)                     # (k_eff, S)
+    s_idx = np.broadcast_to(np.arange(per_view_probs.shape[1]), keep.shape)   # (k_eff, S)
+    selected = per_view_probs[keep, s_idx, :]                                 # (k_eff, S, C)
+    return selected.mean(axis=0)
+
+
+# Default K values for the Top-K sweep (VMV plan).
+TOP_K_VALUES = (3, 5, 7)
+
+
+def top_k_strategy(k: int) -> str:
+    """Canonical strategy name for a given K, e.g. 5 -> 'top5'."""
+    return f"top{k}"
+
+
+# ── Registry of probability-fusion strategies ──────────────────────────────
+# Everything that reduces a cached (N, S, C) array. MC Dropout is intentionally
+# NOT here: it needs its own stochastic forward passes (src/mc_dropout.py) and is
+# dispatched separately.
 FUSION_FNS = {
     "baseline": fuse_equal_weight,
     "maxprob": fuse_maxprob,
@@ -219,6 +273,10 @@ FUSION_FNS = {
     "variance": fuse_variance,
     "variance_inv": fuse_variance_inv,
 }
+# Register Top-K as bound (N,S,C)->(S,C) fusions so fuse("top5", ...),
+# ablate_n, and the reliability/significance tooling can all reuse them.
+for _k in TOP_K_VALUES:
+    FUSION_FNS[top_k_strategy(_k)] = partial(fuse_top_k, k=_k)
 
 # Human-readable labels aligned with the tracker's Sheet 3 column headers.
 STRATEGY_LABELS = {
@@ -230,6 +288,9 @@ STRATEGY_LABELS = {
     "mc_dropout": "MC Dropout (T stochastic passes)",
     "ts_only": "TS Only (softmax(logits/T))",
     "ts_entropy": "TS + Entropy TTA",
+    "top3": "Top-K TTA (K=3, hard filter)",
+    "top5": "Top-K TTA (K=5, hard filter)",
+    "top7": "Top-K TTA (K=7, hard filter)",
 }
 
 
