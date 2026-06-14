@@ -1,0 +1,24 @@
+{
+  "dataset": "organamnist",
+  "arch": "effb0",
+  "modality": "Abdominal CT",
+  "student": "S4",
+  "task": "multi-class",
+  "seed": 42,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\organamnist_effb0_seed42.pth",
+  "train_log_csv": "results\\organamnist_effb0_seed42_train_log.csv",
+  "reliability_figure": "figures\\reliability\\organamnist_effb0_seed42_baseline.png",
+  "curves_figure": "figures\\curves\\organamnist_effb0_seed42_train_curves.png",
+  "benchmark_acc": 0.778,
+  "test_metrics": {
+    "accuracy": 0.960287996400045,
+    "auc_roc": 0.9982946509588001,
+    "ece": 0.025564094733194168,
+    "nll": 0.1699478030204773
+  },
+  "training_time_minutes": 33.25
+}
