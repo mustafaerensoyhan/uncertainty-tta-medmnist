@@ -17,6 +17,12 @@ effb0,dermamnist,tta_all_strategies,10,8.8605
 effb0,dermamnist,tta_all_strategies,20,16.872
 effb0,dermamnist,tta_all_strategies,50,42.0114
 effb0,dermamnist,mc_dropout_T20,20,10.2915
+effb0,organamnist,single_pass,1,0.5646
+effb0,organamnist,tta_all_strategies,5,4.3461
+effb0,organamnist,tta_all_strategies,10,10.7324
+effb0,organamnist,tta_all_strategies,20,17.7841
+effb0,organamnist,tta_all_strategies,50,42.7937
+effb0,organamnist,mc_dropout_T20,20,11.5193
 effb0,pathmnist,single_pass,1,0.5078
 effb0,pathmnist,tta_all_strategies,5,5.1409
 effb0,pathmnist,tta_all_strategies,10,9.3227
