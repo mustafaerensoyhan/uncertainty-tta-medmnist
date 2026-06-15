@@ -82,9 +82,28 @@ def _load_stability(path: Path) -> pd.DataFrame | None:
     return pd.read_csv(path)
 
 
-def _baseline_no_tta_ece(rdir: Path, ds: str) -> float | None:
-    """No-TTA test ECE from results/{ds}_baseline.json, or None if absent."""
-    f = rdir / f"{ds}_baseline.json"
+def _arch_suffix(arch: str) -> str:
+    """File/figure suffix for a backbone (resnet18 keeps the archless name)."""
+    return "" if arch == "resnet18" else f"_{arch}"
+
+
+def _stability_path(rdir: Path, arch: str) -> Path:
+    return rdir / ("seed_stability.csv" if arch == "resnet18"
+                   else f"{arch}_seed_stability.csv")
+
+
+def _ablation_path(rdir: Path, ds: str, arch: str) -> Path:
+    return rdir / (f"{ds}_ablation_aug.csv" if arch == "resnet18"
+                   else f"{ds}_{arch}_ablation_aug.csv")
+
+
+def _baseline_no_tta_ece(rdir: Path, ds: str, arch: str = "resnet18") -> float | None:
+    """
+    No-TTA test ECE from the baseline JSON, or None if absent.
+    resnet18: {ds}_baseline.json ; other backbones: {ds}_{arch}_seed0_baseline.json.
+    """
+    f = (rdir / f"{ds}_baseline.json" if arch == "resnet18"
+         else rdir / f"{ds}_{arch}_seed0_baseline.json")
     if not f.exists():
         return None
     try:
@@ -111,30 +130,34 @@ def _aug_importance(df: pd.DataFrame) -> dict[str, float]:
     return out
 
 
-def _resolve_stem(pdir: Path, ds: str, seed: int) -> str | None:
-    if (pdir / f"{ds}_labels.npy").exists():
-        return ds
-    if (pdir / f"{ds}_seed{seed}_labels.npy").exists():
-        return f"{ds}_seed{seed}"
+def _resolve_stem(pdir: Path, ds: str, seed: int, arch: str = "resnet18") -> str | None:
+    base = ds + _arch_suffix(arch)             # e.g. "pathmnist" or "pathmnist_effb0"
+    if (pdir / f"{base}_labels.npy").exists():
+        return base
+    if (pdir / f"{base}_seed{seed}_labels.npy").exists():
+        return f"{base}_seed{seed}"
     return None
 
 
 # ──────────────────────────────────────────────────────────────────────────
 #   Fig 2 — ECE bar chart
 # ──────────────────────────────────────────────────────────────────────────
-def fig2_ece(results_dir="./results", figures_dir="./figures") -> Path | None:
+def fig2_ece(results_dir="./results", figures_dir="./figures",
+             arch="resnet18") -> Path | None:
     rdir, fdir = Path(results_dir), Path(figures_dir)
-    stab = _load_stability(rdir / "seed_stability.csv")
+    stab_path = _stability_path(rdir, arch)
+    stab = _load_stability(stab_path)
     if stab is None:
-        print("[fig2] MISSING results/seed_stability.csv — generate with "
-              "`python -m scripts.aggregate_seeds`. Skipping Fig 2.")
+        agg = "aggregate_seeds" + ("" if arch == "resnet18" else f" --arch {arch}")
+        print(f"[fig2] MISSING {stab_path} — generate with "
+              f"`python -m scripts.{agg}`. Skipping Fig 2 ({arch}).")
         return None
 
     datasets = [d for d in all_dataset_keys() if d in set(stab["dataset"])]
     strategies = [s for s in FIG2_STRATEGIES if s in set(stab["strategy"])]
     missing_strats = [s for s in FIG2_STRATEGIES if s not in strategies]
     if missing_strats:
-        print(f"[fig2] strategies not in seed_stability.csv (omitted): {missing_strats}")
+        print(f"[fig2/{arch}] strategies not in {stab_path.name} (omitted): {missing_strats}")
 
     idx = stab.set_index(["dataset", "strategy"])
     n_ds, n_st = len(datasets), len(strategies)
@@ -154,10 +177,10 @@ def fig2_ece(results_dir="./results", figures_dir="./figures") -> Path | None:
         ax.bar(x + j * width, means, width, yerr=stds, capsize=2,
                label=strat, color=cmap(j), edgecolor="black", linewidth=0.4)
 
-    # Dashed no-TTA reference line per group (from baseline.json).
+    # Dashed no-TTA reference line per group (from the baseline JSON).
     ref_label_used = False
     for i, ds in enumerate(datasets):
-        ref = _baseline_no_tta_ece(rdir, ds)
+        ref = _baseline_no_tta_ece(rdir, ds, arch)
         if ref is None:
             continue
         ax.hlines(ref, x[i] - 0.1, x[i] + 0.8, colors="grey", linestyles="--",
@@ -165,19 +188,22 @@ def fig2_ece(results_dir="./results", figures_dir="./figures") -> Path | None:
                   label=None if ref_label_used else "no-TTA baseline")
         ref_label_used = True
 
+    arch_label = {"resnet18": "ResNet-18", "effb0": "EfficientNet-B0"}.get(arch, arch)
     ax.set_xticks(x + 0.4 - width / 2)
     ax.set_xticklabels([SHORT_NAME.get(d, d) for d in datasets])
     ax.set_ylabel("Expected Calibration Error (ECE)")
-    ax.set_title("ECE by dataset and TTA strategy (mean ± std over 3 seeds)")
+    ax.set_title(f"ECE by dataset and TTA strategy — {arch_label} "
+                 f"(mean ± std over 3 seeds)")
     ax.legend(ncol=min(4, n_st + 1), fontsize=8, frameon=False)
     ax.grid(axis="y", alpha=0.3)
     fig.tight_layout()
 
-    out = fdir / "fig2_ece.pdf"
+    out = fdir / f"fig2_ece{_arch_suffix(arch)}.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
-    print(f"[fig2] wrote {out}  ({n_ds} datasets x {n_st} strategies)")
+    print(f"[fig2] wrote {out}  ({arch}: {n_ds} datasets x {n_st} strategies"
+          + (", incl. top5" if "top5" in strategies else "") + ")")
     return out
 
 
@@ -263,14 +289,14 @@ def fig5_mechanism(results_dir="./results", figures_dir="./figures") -> Path | N
 #   Fig 4 — augmentation-importance heatmap
 # ──────────────────────────────────────────────────────────────────────────
 def fig4_heatmap(results_dir="./results", figures_dir="./figures",
-                 allow_partial=False) -> Path | None:
+                 allow_partial=False, arch="resnet18") -> Path | None:
     rdir, fdir = Path(results_dir), Path(figures_dir)
     datasets = all_dataset_keys()
 
     matrix = np.full((len(datasets), len(AUG_ORDER)), np.nan)
     missing_ds, missing_cells = [], []
     for i, ds in enumerate(datasets):
-        f = rdir / f"{ds}_ablation_aug.csv"
+        f = _ablation_path(rdir, ds, arch)
         if not f.exists():
             missing_ds.append(ds)
             continue
@@ -281,13 +307,14 @@ def fig4_heatmap(results_dir="./results", figures_dir="./figures",
             else:
                 missing_cells.append(f"{ds}/{aug}")
 
+    arch_flag = "" if arch == "resnet18" else f" --arch {arch}"
     if missing_ds or missing_cells:
-        msg = ["[fig4] augmentation-importance matrix is incomplete:"]
+        msg = [f"[fig4/{arch}] augmentation-importance matrix is incomplete:"]
         if missing_ds:
             cmds = "\n".join(
-                f"           python -m scripts.ablate_augmentations --dataset {d}"
+                f"           python -m scripts.ablate_augmentations --dataset {d}{arch_flag}"
                 for d in missing_ds)
-            msg.append(f"  missing datasets (no results/{{ds}}_ablation_aug.csv): {missing_ds}\n"
+            msg.append(f"  missing datasets (no {_ablation_path(rdir, '{ds}', arch).name}): {missing_ds}\n"
                        f"        generate with:\n{cmds}")
         if missing_cells:
             msg.append(f"  missing cells: {missing_cells}")
@@ -318,10 +345,12 @@ def fig4_heatmap(results_dir="./results", figures_dir="./figures",
                         fontsize=7, color="black")
     cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
     cbar.set_label("Accuracy change when augmentation removed (pp; full − ablated)")
-    ax.set_title("Augmentation importance (positive = augmentation helps accuracy)")
+    arch_label = {"resnet18": "ResNet-18", "effb0": "EfficientNet-B0"}.get(arch, arch)
+    ax.set_title(f"Augmentation importance — {arch_label} "
+                 f"(positive = augmentation helps accuracy)")
     fig.tight_layout()
 
-    out = fdir / "fig4_heatmap.pdf"
+    out = fdir / f"fig4_heatmap{_arch_suffix(arch)}.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
@@ -359,18 +388,20 @@ def _reliability_panel(ax, probs, labels, n_bins, title):
 
 
 def fig3_reliability(predictions_dir="./predictions", figures_dir="./figures",
-                     seed=42, n_bins=10) -> Path | None:
+                     seed=42, n_bins=10, arch="resnet18") -> Path | None:
     pdir, fdir = Path(predictions_dir), Path(figures_dir)
     panels = [("pathmnist", "baseline"), ("pathmnist", "entropy"),
               ("bloodmnist", "baseline"), ("bloodmnist", "entropy")]
+    sfx = _arch_suffix(arch)
+    arch_flag = "" if arch == "resnet18" else f" --arch {arch}"
 
     # Resolve and verify every required array up front.
     missing = []
     resolved = {}
     for ds, strat in panels:
-        stem = _resolve_stem(pdir, ds, seed)
+        stem = _resolve_stem(pdir, ds, seed, arch)
         if stem is None:
-            missing.append(f"{pdir}/{ds}_labels.npy (or {ds}_seed{seed}_labels.npy)")
+            missing.append(f"{pdir}/{ds}{sfx}_labels.npy (or {ds}{sfx}_seed{seed}_labels.npy)")
             continue
         probs_f = pdir / f"{stem}_{strat}_probs.npy"
         if not probs_f.exists():
@@ -379,16 +410,17 @@ def fig3_reliability(predictions_dir="./predictions", figures_dir="./figures",
             resolved[(ds, strat)] = (pdir / f"{stem}_labels.npy", probs_f)
 
     if missing:
-        print("[fig3] cannot build reliability diagrams — missing prediction arrays:")
+        print(f"[fig3/{arch}] cannot build reliability diagrams — missing prediction arrays:")
         for m in missing:
             print(f"         {m}")
         needed_ds = sorted({ds for ds, _ in panels})
         print("       Generate them with (per dataset):")
         for ds in needed_ds:
             print(f"         python -m scripts.run_weighted_tta "
-                  f"--dataset {ds} --ckpt-tag _seed{seed} --seed {seed}")
+                  f"--dataset {ds}{arch_flag} --ckpt-tag _seed{seed} --seed {seed}")
         return None
 
+    arch_label = {"resnet18": "ResNet-18", "effb0": "EfficientNet-B0"}.get(arch, arch)
     fig, axes = plt.subplots(2, 2, figsize=(9, 9))
     for ax, (ds, strat) in zip(axes.ravel(), panels):
         lab_f, probs_f = resolved[(ds, strat)]
@@ -397,10 +429,10 @@ def fig3_reliability(predictions_dir="./predictions", figures_dir="./figures",
         ece = expected_calibration_error(probs, labels, n_bins=n_bins)
         _reliability_panel(ax, probs, labels, n_bins,
                            f"{SHORT_NAME.get(ds, ds)} — {strat} (ECE={ece:.3f})")
-    fig.suptitle("Reliability diagrams (10 bins)", fontsize=12)
+    fig.suptitle(f"Reliability diagrams — {arch_label} (10 bins)", fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
 
-    out = fdir / "fig3_reliability.pdf"
+    out = fdir / f"fig3_reliability{sfx}.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
@@ -418,22 +450,29 @@ def main() -> int:
     ap.add_argument("--predictions-dir", default="./predictions")
     ap.add_argument("--seed", type=int, default=42,
                     help="Seed tag for Fig 3 prediction arrays (default 42).")
+    ap.add_argument("--arch", default="resnet18",
+                    choices=["resnet18", "effb0", "both"],
+                    help="Backbone for the per-arch figures (2/3/4). "
+                         "'both' renders ResNet-18 and EfficientNet-B0. "
+                         "Fig 5 always overlays both. Default: resnet18.")
     ap.add_argument("--allow-partial", action="store_true",
                     help="Fig 4: render with missing cells blank instead of failing.")
     args = ap.parse_args()
 
     want = {args.figure} if args.figure != "all" else {"2", "3", "4", "5"}
+    archs = ["resnet18", "effb0"] if args.arch == "both" else [args.arch]
     produced = []
-    if "2" in want:
-        produced.append(fig2_ece(args.results_dir, args.figures_dir))
-    if "5" in want:
+    if "5" in want:  # arch-independent (overlays both backbones)
         produced.append(fig5_mechanism(args.results_dir, args.figures_dir))
-    if "4" in want:
-        produced.append(fig4_heatmap(args.results_dir, args.figures_dir,
-                                     allow_partial=args.allow_partial))
-    if "3" in want:
-        produced.append(fig3_reliability(args.predictions_dir, args.figures_dir,
-                                         seed=args.seed))
+    for arch in archs:
+        if "2" in want:
+            produced.append(fig2_ece(args.results_dir, args.figures_dir, arch=arch))
+        if "4" in want:
+            produced.append(fig4_heatmap(args.results_dir, args.figures_dir,
+                                         allow_partial=args.allow_partial, arch=arch))
+        if "3" in want:
+            produced.append(fig3_reliability(args.predictions_dir, args.figures_dir,
+                                             seed=args.seed, arch=arch))
 
     ok = [p for p in produced if p is not None]
     print(f"\nDone. {len(ok)}/{len(produced)} figure(s) produced.")
