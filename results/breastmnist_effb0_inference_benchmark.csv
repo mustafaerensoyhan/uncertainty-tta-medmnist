@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+effb0,breastmnist,single_pass,1,0.6188
+effb0,breastmnist,tta_all_strategies,5,4.1648
+effb0,breastmnist,tta_all_strategies,10,8.8847
+effb0,breastmnist,tta_all_strategies,20,18.2348
+effb0,breastmnist,tta_all_strategies,50,46.3308
+effb0,breastmnist,mc_dropout_T20,20,12.0553

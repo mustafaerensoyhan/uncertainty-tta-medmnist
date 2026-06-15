@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+effb0,dermamnist,single_pass,1,0.5015
+effb0,dermamnist,tta_all_strategies,5,4.2877
+effb0,dermamnist,tta_all_strategies,10,8.8605
+effb0,dermamnist,tta_all_strategies,20,16.872
+effb0,dermamnist,tta_all_strategies,50,42.0114
+effb0,dermamnist,mc_dropout_T20,20,10.2915

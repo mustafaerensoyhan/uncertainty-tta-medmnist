@@ -55,5 +55,11 @@ predictions/
 !results/significance.csv
 !results/significance_wilcoxon.csv
 !results/full_matrix.csv
+!results/*_weighted_tta.csv
+!results/*_standard_tta.csv
+!results/*_ablation_N.csv
+!results/*_ablation_aug.csv
+!results/*_inference_benchmark.csv
+!results/inference_benchmark.csv
 !figures/reliability/*.pdf
 !figures/analysis/*.pdf

@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+effb0,bloodmnist,single_pass,1,0.5234
+effb0,bloodmnist,tta_all_strategies,5,4.3196
+effb0,bloodmnist,tta_all_strategies,10,8.6559
+effb0,bloodmnist,tta_all_strategies,20,16.8919
+effb0,bloodmnist,tta_all_strategies,50,41.2855
+effb0,bloodmnist,mc_dropout_T20,20,10.3609

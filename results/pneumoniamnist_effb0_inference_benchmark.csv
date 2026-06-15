@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+effb0,pneumoniamnist,single_pass,1,0.5361
+effb0,pneumoniamnist,tta_all_strategies,5,4.5584
+effb0,pneumoniamnist,tta_all_strategies,10,9.252
+effb0,pneumoniamnist,tta_all_strategies,20,17.5523
+effb0,pneumoniamnist,tta_all_strategies,50,41.7024
+effb0,pneumoniamnist,mc_dropout_T20,20,11.1181
