@@ -67,11 +67,12 @@ ResNet-18 keeps the archless filename; EfficientNet-B0 gets an `_effb0` suffix
 (`fig2_ece_effb0.pdf`, `fig4_heatmap_effb0.pdf`, …). Fig 5 already overlays both
 backbones and is arch-independent.
 
-**Top-K(5):** the plan's `top5` bar appears in **EfficientNet-B0** Fig 2
-(top3/top5/top7 exist in `effb0_seed_stability.csv`). ResNet-18 was **never run
-with Top-K**, so its `seed_stability.csv` has only the 8 core strategies and Fig 2
-omits `top5` — adding it there requires re-running `run_weighted_tta` with the
-Top-K columns enabled for all ResNet-18 seeds, not a figure change.
+**Top-K(5):** the plan's `top5` bar now appears for **both** backbones. As of
+S1's update, `results/seed_stability.csv` is a single combined file with an
+`arch` column (resnet18 + effb0) and includes top3/top5/top7 for ResNet-18
+across all 6 datasets and for EfficientNet-B0 across 5 (no OrganAMNIST). The
+figure script reads this combined schema via `_stability_for_arch()` and still
+falls back to the legacy archless file / separate `effb0_seed_stability.csv`.
 
 ## Expected outputs
 
@@ -106,11 +107,11 @@ These reflect what is on disk now; they are **not** script bugs — they are the
   for cross-checking — they match `seed_stability.csv` exactly. `top5` is absent
   from the ResNet-18 `seed_stability.csv` (never run), present for EfficientNet-B0.
   EfficientNet-B0 covers 5 datasets (no organamnist in `effb0_seed_stability.csv`).
-- **Fig 4:** ResNet-18 is now **complete** (6×10) — `dermamnist_ablation_aug.csv`
-  was restored from git history (commit `9659646`; it had been generated then
-  dropped by the old `.gitignore`). EfficientNet-B0 (`--arch effb0`) is missing
-  only OrganAMNIST, so it needs `--allow-partial` (Organ row blank, no numbers
-  invented).
+- **Fig 4:** **complete (6×10) for both backbones.** ResNet-18's
+  `dermamnist_ablation_aug.csv` was restored from git history (commit `9659646`;
+  generated then dropped by the old `.gitignore`); EfficientNet-B0's
+  `organamnist_effb0_ablation_aug.csv` arrived in S1's update, so `--arch effb0`
+  no longer needs `--allow-partial`.
 - **Fig 3:** PathMNIST/BloodMNIST prediction arrays are not on disk (neither
   backbone), so this figure cannot be built here yet. The script prints the exact
   missing files and the `run_weighted_tta` commands; once those arrays exist the

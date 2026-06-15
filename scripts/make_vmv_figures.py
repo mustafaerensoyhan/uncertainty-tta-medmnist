@@ -82,14 +82,38 @@ def _load_stability(path: Path) -> pd.DataFrame | None:
     return pd.read_csv(path)
 
 
+def _stability_for_arch(rdir: Path, arch: str) -> pd.DataFrame | None:
+    """
+    Per-backbone seed-stability rows, indexed by (dataset, strategy).
+
+    Handles both layouts:
+      * new combined results/seed_stability.csv with an `arch` column
+        (resnet18 + effb0 in one file) — filtered to `arch`;
+      * legacy archless results/seed_stability.csv (resnet18 only) plus a
+        separate results/{arch}_seed_stability.csv for other backbones.
+    Returns None if no rows for this backbone are found.
+    """
+    frames = []
+    for path in (rdir / "seed_stability.csv", rdir / f"{arch}_seed_stability.csv"):
+        df = _load_stability(path)
+        if df is None:
+            continue
+        if "arch" in df.columns:
+            df = df[df["arch"] == arch]
+        elif arch != "resnet18":
+            # Archless file is resnet18 only; skip it for other backbones.
+            continue
+        if not df.empty:
+            frames.append(df[["dataset", "strategy", "ece_mean", "ece_std"]])
+    if not frames:
+        return None
+    out = pd.concat(frames).drop_duplicates(["dataset", "strategy"])
+    return out.set_index(["dataset", "strategy"])
+
+
 def _arch_suffix(arch: str) -> str:
     """File/figure suffix for a backbone (resnet18 keeps the archless name)."""
     return "" if arch == "resnet18" else f"_{arch}"
-
-
-def _stability_path(rdir: Path, arch: str) -> Path:
-    return rdir / ("seed_stability.csv" if arch == "resnet18"
-                   else f"{arch}_seed_stability.csv")
 
 
 def _ablation_path(rdir: Path, ds: str, arch: str) -> Path:
@@ -145,21 +169,21 @@ def _resolve_stem(pdir: Path, ds: str, seed: int, arch: str = "resnet18") -> str
 def fig2_ece(results_dir="./results", figures_dir="./figures",
              arch="resnet18") -> Path | None:
     rdir, fdir = Path(results_dir), Path(figures_dir)
-    stab_path = _stability_path(rdir, arch)
-    stab = _load_stability(stab_path)
-    if stab is None:
+    idx = _stability_for_arch(rdir, arch)
+    if idx is None:
         agg = "aggregate_seeds" + ("" if arch == "resnet18" else f" --arch {arch}")
-        print(f"[fig2] MISSING {stab_path} — generate with "
+        print(f"[fig2] no {arch} rows in results/seed_stability.csv — generate with "
               f"`python -m scripts.{agg}`. Skipping Fig 2 ({arch}).")
         return None
 
-    datasets = [d for d in all_dataset_keys() if d in set(stab["dataset"])]
-    strategies = [s for s in FIG2_STRATEGIES if s in set(stab["strategy"])]
+    present_ds = idx.index.get_level_values("dataset")
+    present_st = idx.index.get_level_values("strategy")
+    datasets = [d for d in all_dataset_keys() if d in set(present_ds)]
+    strategies = [s for s in FIG2_STRATEGIES if s in set(present_st)]
     missing_strats = [s for s in FIG2_STRATEGIES if s not in strategies]
     if missing_strats:
-        print(f"[fig2/{arch}] strategies not in {stab_path.name} (omitted): {missing_strats}")
+        print(f"[fig2/{arch}] strategies not available (omitted): {missing_strats}")
 
-    idx = stab.set_index(["dataset", "strategy"])
     n_ds, n_st = len(datasets), len(strategies)
     width = 0.8 / n_st
     x = np.arange(n_ds)
@@ -212,12 +236,11 @@ def fig2_ece(results_dir="./results", figures_dir="./figures",
 # ──────────────────────────────────────────────────────────────────────────
 def fig5_mechanism(results_dir="./results", figures_dir="./figures") -> Path | None:
     rdir, fdir = Path(results_dir), Path(figures_dir)
-    stab = _load_stability(rdir / "seed_stability.csv")
+    idx = _stability_for_arch(rdir, "resnet18")
 
     # (n_classes, baseline_ece, entropy_ece) per dataset.
     pts: dict[str, tuple[int, float, float]] = {}
-    if stab is not None:
-        idx = stab.set_index(["dataset", "strategy"])
+    if idx is not None:
         for ds in all_dataset_keys():
             if (ds, "baseline") in idx.index and (ds, "entropy") in idx.index:
                 pts[ds] = (get_config(ds).n_classes,
@@ -249,9 +272,8 @@ def fig5_mechanism(results_dir="./results", figures_dir="./figures") -> Path | N
                     color="tab:red" if is_derma else "black")
 
     # EfficientNet-B0 overlay (hollow markers), if available.
-    eff = _load_stability(rdir / "effb0_seed_stability.csv")
-    if eff is not None:
-        eidx = eff.set_index(["dataset", "strategy"])
+    eidx = _stability_for_arch(rdir, "effb0")
+    if eidx is not None:
         n_overlay = 0
         for ds in all_dataset_keys():
             if (ds, "baseline") in eidx.index and (ds, "entropy") in eidx.index:

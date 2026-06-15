@@ -93,6 +93,40 @@ def test_aug_importance_full_minus_remove():
     assert "(none/full)" not in imp
 
 
+def test_stability_for_arch_filters_combined_schema(tmp_path):
+    """New combined seed_stability.csv (with an `arch` column) is filtered by arch."""
+    figs = importlib.import_module("scripts.make_vmv_figures")
+    rdir = tmp_path / "results"
+    rdir.mkdir()
+    pd.DataFrame({
+        "dataset": ["pathmnist", "pathmnist", "pathmnist", "pathmnist"],
+        "arch": ["resnet18", "resnet18", "effb0", "effb0"],
+        "strategy": ["baseline", "entropy", "baseline", "entropy"],
+        "ece_mean": [0.025, 0.016, 0.034, 0.022],
+        "ece_std": [0.003, 0.002, 0.001, 0.001],
+    }).to_csv(rdir / "seed_stability.csv", index=False)
+
+    r = figs._stability_for_arch(rdir, "resnet18")
+    e = figs._stability_for_arch(rdir, "effb0")
+    assert float(r.loc[("pathmnist", "entropy"), "ece_mean"]) == pytest.approx(0.016)
+    assert float(e.loc[("pathmnist", "baseline"), "ece_mean"]) == pytest.approx(0.034)
+    # index is unique per (dataset, strategy) after arch filtering
+    assert r.index.is_unique and e.index.is_unique
+
+
+def test_stability_for_arch_legacy_archless(tmp_path):
+    """Legacy archless seed_stability.csv is treated as resnet18; effb0 -> None."""
+    figs = importlib.import_module("scripts.make_vmv_figures")
+    rdir = tmp_path / "results"
+    rdir.mkdir()
+    pd.DataFrame({
+        "dataset": ["pathmnist"], "strategy": ["baseline"],
+        "ece_mean": [0.025], "ece_std": [0.003],
+    }).to_csv(rdir / "seed_stability.csv", index=False)
+    assert figs._stability_for_arch(rdir, "resnet18") is not None
+    assert figs._stability_for_arch(rdir, "effb0") is None
+
+
 def test_aug_importance_requires_full_row():
     figs = importlib.import_module("scripts.make_vmv_figures")
     df = pd.DataFrame({"removed": ["hflip"], "accuracy": [0.85]})
