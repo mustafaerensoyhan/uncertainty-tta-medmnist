@@ -18,10 +18,13 @@ from sklearn.metrics import roc_auc_score
 
 
 def _to_numpy(x) -> np.ndarray:
-    """Best-effort conversion to a numpy array."""
-    import torch
-    if isinstance(x, torch.Tensor):
-        return x.detach().cpu().numpy()
+    """Best-effort conversion to a numpy array (torch optional)."""
+    try:
+        import torch
+        if isinstance(x, torch.Tensor):
+            return x.detach().cpu().numpy()
+    except ImportError:
+        pass
     return np.asarray(x)
 
 
@@ -84,6 +87,74 @@ def expected_calibration_error(probs: np.ndarray, labels: np.ndarray,
         bin_conf = confidences[mask].mean()
         ece += (mask.sum() / n) * abs(bin_acc - bin_conf)
     return float(ece)
+
+
+def _ece_from_conf(confidences: np.ndarray, correct: np.ndarray,
+                   n_bins: int = 10) -> float:
+    """
+    ECE from pre-computed per-image max-confidence and correctness flags.
+
+    Identical binning to expected_calibration_error (equal-width, exclusive
+    lower bound). Factored out so the bootstrap can resample indices without
+    re-running argmax on every replicate.
+    """
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+    n = len(confidences)
+    ece = 0.0
+    for i in range(n_bins):
+        mask = (confidences > bin_edges[i]) & (confidences <= bin_edges[i + 1])
+        c = int(mask.sum())
+        if c == 0:
+            continue
+        bin_acc = correct[mask].mean()
+        bin_conf = confidences[mask].mean()
+        ece += (c / n) * abs(bin_acc - bin_conf)
+    return float(ece)
+
+
+def bootstrap_ece_ci(probs: np.ndarray, labels: np.ndarray,
+                     n_bins: int = 10, n_boot: int = 2000,
+                     ci: float = 0.95, seed: int = 0):
+    """
+    Bootstrap confidence interval for ECE (Implementer-2 deliverable 1).
+
+    Resamples the test set with replacement `n_boot` times and recomputes ECE
+    on each replicate, then takes the percentile interval. Returns the point
+    estimate plus the CI bounds:
+
+        (ece, ci_low, ci_high)
+
+    The per-image confidences/correctness are computed once and only the
+    binning is repeated per replicate, so 2000 resamples run in well under a
+    second for a typical MedMNIST test split.
+
+    Args:
+        probs: (N, C) softmax probabilities.
+        labels: (N,) true labels (or (N, 1); ravelled).
+        n_bins: equal-width confidence bins (default 10, matches the proposal).
+        n_boot: number of bootstrap resamples (default 2000).
+        ci: central interval coverage (default 0.95).
+        seed: RNG seed for reproducible resampling.
+    """
+    probs, labels = _to_numpy(probs), _to_numpy(labels).ravel()
+    confidences = probs.max(axis=1)
+    predictions = probs.argmax(axis=1)
+    correct = (predictions == labels).astype(np.float64)
+
+    point = _ece_from_conf(confidences, correct, n_bins)
+
+    n = len(labels)
+    rng = np.random.default_rng(seed)
+    boots = np.empty(n_boot, dtype=np.float64)
+    for b in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        boots[b] = _ece_from_conf(confidences[idx], correct[idx], n_bins)
+
+    lo_pct = (1.0 - ci) / 2.0 * 100.0
+    hi_pct = (1.0 + ci) / 2.0 * 100.0
+    ci_low = float(np.percentile(boots, lo_pct))
+    ci_high = float(np.percentile(boots, hi_pct))
+    return point, ci_low, ci_high
 
 
 def negative_log_likelihood(probs: np.ndarray, labels: np.ndarray,

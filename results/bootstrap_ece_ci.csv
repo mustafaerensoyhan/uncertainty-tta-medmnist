@@ -1,0 +1,9 @@
+dataset,strategy,ece,ci_low,ci_high,baseline_ci_low,baseline_ci_high,significant_vs_baseline
+dermamnist,baseline,0.062299,0.050963,0.077427,0.050963,0.077427,False
+dermamnist,maxprob,0.070085,0.057523,0.085523,0.050963,0.077427,False
+dermamnist,entropy,0.073679,0.060729,0.088685,0.050963,0.077427,False
+dermamnist,variance,0.074895,0.06172,0.089706,0.050963,0.077427,False
+dermamnist,variance_inv,0.046965,0.038227,0.062533,0.050963,0.077427,False
+dermamnist,mc_dropout,0.097931,0.085233,0.113264,0.050963,0.077427,True
+dermamnist,ts_only,0.074292,0.062923,0.090035,0.050963,0.077427,False
+dermamnist,ts_entropy,0.053223,0.042955,0.069131,0.050963,0.077427,False

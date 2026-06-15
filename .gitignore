@@ -54,6 +54,7 @@ predictions/
 
 !results/significance.csv
 !results/significance_wilcoxon.csv
+!results/bootstrap_ece_ci.csv
 !results/full_matrix.csv
 !results/*_weighted_tta.csv
 !results/*_standard_tta.csv
