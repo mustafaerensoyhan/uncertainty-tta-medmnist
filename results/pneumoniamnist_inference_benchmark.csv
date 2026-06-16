@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+resnet18,pneumoniamnist,single_pass,1,0.5565
+resnet18,pneumoniamnist,tta_all_strategies,5,5.8023
+resnet18,pneumoniamnist,tta_all_strategies,10,11.3708
+resnet18,pneumoniamnist,tta_all_strategies,20,23.3098
+resnet18,pneumoniamnist,tta_all_strategies,50,47.5571
+resnet18,pneumoniamnist,mc_dropout_T20,20,10.1563
