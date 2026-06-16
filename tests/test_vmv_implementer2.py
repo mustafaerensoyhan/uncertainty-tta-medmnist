@@ -154,3 +154,40 @@ def test_fig3_returns_none_when_arrays_missing(tmp_path):
     out = figs.fig3_reliability(predictions_dir=str(tmp_path / "predictions"),
                                 figures_dir=str(tmp_path / "figs"))
     assert out is None
+
+
+# ──────────────────────────────────────────────────────────────────────────
+#   Fig 1 composite assembler (helping Implementer 1)
+# ──────────────────────────────────────────────────────────────────────────
+def test_confidence_strip_panel_renders(tmp_path):
+    """The shared panel renderer draws into a figure cell from numpy views (no torch)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from src.visualize import confidence_strip_panel
+
+    fig = plt.figure(figsize=(4, 2))
+    gs = fig.add_gridspec(1, 1)
+    views = [np.random.rand(8, 8, 3) for _ in range(3)]
+    weights = np.array([0.5, 0.3, 0.2])
+    confidence_strip_panel(fig, gs[0], views, weights, ["a", "b", "c"],
+                           highlight_idx=[0], ylabel="Path")
+    out = tmp_path / "panel.pdf"
+    fig.savefig(out)
+    plt.close(fig)
+    assert out.exists() and out.stat().st_size > 0
+
+
+def test_fig1_composite_imports_and_skips_without_checkpoints(tmp_path):
+    """Composite assembler imports and returns None when no checkpoints exist."""
+    from types import SimpleNamespace
+    comp = importlib.import_module("scripts.make_fig1_composite")
+    assert callable(comp.make_composite)
+    args = SimpleNamespace(
+        datasets=["pathmnist"], arch="resnet18", n_images=1, seeds=[0],
+        select="random", gold_k=5, n_views=10, include_all_augs=False,
+        max_scan=400, n_candidates=40, min_conf=0.6, img_size=64, seed=42,
+        data_root=str(tmp_path / "data"),
+        checkpoints_dir=str(tmp_path / "ckpts"),   # empty -> every row skipped
+        figures_dir=str(tmp_path / "figs"))
+    assert comp.make_composite(args, device="cpu") is None
