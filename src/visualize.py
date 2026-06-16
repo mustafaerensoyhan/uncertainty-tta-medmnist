@@ -245,16 +245,20 @@ def confidence_strip_panel(fig, subplot_spec, views: "list",
                            weights: np.ndarray, aug_names: "list[str]",
                            highlight_idx: "list[int] | np.ndarray | None" = None,
                            show_names: bool = True,
-                           ylabel: "str | None" = None) -> None:
+                           ylabel: "str | None" = None,
+                           name_fontsize: int = 8,
+                           show_values: bool = True) -> None:
     """
     Draw one Augmentation Confidence Strip into an existing figure cell.
 
     Same two-row visual as confidence_strip() (thumbnails over coloured weight
     bars), but rendered into a provided GridSpec cell so several strips can be
-    tiled into one composite (the paper's Figure 1, 4 modalities x 3 samples).
+    stacked into one composite (the paper's Figure 1). Designed to be laid out
+    one strip per full-width row so the thumbnails and aug labels stay legible.
 
     Args mirror confidence_strip(); `subplot_spec` is a matplotlib SubplotSpec
-    (e.g. an item of fig.add_gridspec(...)). `ylabel` labels the weight row.
+    (e.g. an item of fig.add_gridspec(...)). `ylabel` labels the row (e.g. the
+    modality / sample); `show_values` prints the numeric weight above each bar.
     """
     from matplotlib.gridspec import GridSpecFromSubplotSpec
     try:
@@ -266,10 +270,11 @@ def confidence_strip_panel(fig, subplot_spec, views: "list",
     highlight = set(int(i) for i in highlight_idx) if highlight_idx is not None else set()
     n = len(views)
     inner = GridSpecFromSubplotSpec(2, n, subplot_spec=subplot_spec,
-                                    height_ratios=[3, 1.4], hspace=0.05, wspace=0.15)
+                                    height_ratios=[3, 1.2], hspace=0.04, wspace=0.08)
     cmap = plt.get_cmap("Blues")
     span = weights.max() - weights.min()
     norm_w = (weights - weights.min()) / (span + 1e-8)
+    wmax = weights.max()
 
     for i in range(n):
         view = views[i]
@@ -286,19 +291,26 @@ def confidence_strip_panel(fig, subplot_spec, views: "list",
         is_gray = img_np.ndim == 2 or img_np.shape[-1] == 1
         ax_img.imshow(img_np.squeeze(), cmap="gray" if is_gray else None)
         if show_names:
-            ax_img.set_title(aug_names[i], fontsize=6, rotation=30, ha="right")
+            ax_img.set_title(aug_names[i], fontsize=name_fontsize,
+                             rotation=30, ha="left", va="bottom")
         ax_img.axis("off")
 
         ax_bar = fig.add_subplot(inner[1, i])
         kept = i in highlight
         ax_bar.bar(0, weights[i], color=cmap(0.3 + 0.7 * norm_w[i]),
-                   width=0.6, edgecolor=("gold" if kept else "navy"),
-                   linewidth=(2.6 if kept else 0.5), zorder=3)
-        ax_bar.set_ylim(0, weights.max() * 1.15 + 1e-6)
+                   width=0.7, edgecolor=("gold" if kept else "navy"),
+                   linewidth=(2.4 if kept else 0.5), zorder=3)
+        ax_bar.set_ylim(0, wmax * 1.25 + 1e-6)
         ax_bar.set_xlim(-0.5, 0.5)
         ax_bar.set_xticks([])
+        if show_values:
+            ax_bar.text(0, weights[i] + wmax * 0.05, f"{weights[i]:.2f}",
+                        ha="center", va="bottom", fontsize=6,
+                        color=("darkgoldenrod" if kept else "black"))
         if i == 0 and ylabel:
-            ax_bar.set_ylabel(ylabel, fontsize=7)
+            ax_bar.set_ylabel(ylabel, fontsize=9, fontweight="bold")
+            ax_bar.set_yticks([0, round(wmax, 2)])
+            ax_bar.tick_params(labelsize=6)
         else:
             ax_bar.set_yticks([])
 
