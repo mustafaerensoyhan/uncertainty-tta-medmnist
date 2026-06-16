@@ -241,6 +241,68 @@ def confidence_strip(views: "list", weights: np.ndarray, aug_names: "list[str]",
     plt.close(fig)
 
 
+def confidence_strip_panel(fig, subplot_spec, views: "list",
+                           weights: np.ndarray, aug_names: "list[str]",
+                           highlight_idx: "list[int] | np.ndarray | None" = None,
+                           show_names: bool = True,
+                           ylabel: "str | None" = None) -> None:
+    """
+    Draw one Augmentation Confidence Strip into an existing figure cell.
+
+    Same two-row visual as confidence_strip() (thumbnails over coloured weight
+    bars), but rendered into a provided GridSpec cell so several strips can be
+    tiled into one composite (the paper's Figure 1, 4 modalities x 3 samples).
+
+    Args mirror confidence_strip(); `subplot_spec` is a matplotlib SubplotSpec
+    (e.g. an item of fig.add_gridspec(...)). `ylabel` labels the weight row.
+    """
+    from matplotlib.gridspec import GridSpecFromSubplotSpec
+    try:
+        import torch
+    except ImportError:                       # torch optional (e.g. in tests)
+        torch = None
+
+    weights = np.asarray(weights, dtype=np.float64)
+    highlight = set(int(i) for i in highlight_idx) if highlight_idx is not None else set()
+    n = len(views)
+    inner = GridSpecFromSubplotSpec(2, n, subplot_spec=subplot_spec,
+                                    height_ratios=[3, 1.4], hspace=0.05, wspace=0.15)
+    cmap = plt.get_cmap("Blues")
+    span = weights.max() - weights.min()
+    norm_w = (weights - weights.min()) / (span + 1e-8)
+
+    for i in range(n):
+        view = views[i]
+        if torch is not None and isinstance(view, torch.Tensor):
+            img_np = view.detach().cpu().clamp(0, 1).permute(1, 2, 0).numpy()
+        else:
+            img_np = np.asarray(view)
+            if img_np.ndim == 3 and img_np.shape[0] in (1, 3):
+                img_np = np.transpose(img_np, (1, 2, 0))
+        rng = img_np.max() - img_np.min()
+        img_np = (img_np - img_np.min()) / (rng + 1e-8)
+
+        ax_img = fig.add_subplot(inner[0, i])
+        is_gray = img_np.ndim == 2 or img_np.shape[-1] == 1
+        ax_img.imshow(img_np.squeeze(), cmap="gray" if is_gray else None)
+        if show_names:
+            ax_img.set_title(aug_names[i], fontsize=6, rotation=30, ha="right")
+        ax_img.axis("off")
+
+        ax_bar = fig.add_subplot(inner[1, i])
+        kept = i in highlight
+        ax_bar.bar(0, weights[i], color=cmap(0.3 + 0.7 * norm_w[i]),
+                   width=0.6, edgecolor=("gold" if kept else "navy"),
+                   linewidth=(2.6 if kept else 0.5), zorder=3)
+        ax_bar.set_ylim(0, weights.max() * 1.15 + 1e-6)
+        ax_bar.set_xlim(-0.5, 0.5)
+        ax_bar.set_xticks([])
+        if i == 0 and ylabel:
+            ax_bar.set_ylabel(ylabel, fontsize=7)
+        else:
+            ax_bar.set_yticks([])
+
+
 def training_curves(log: "list[dict[str, Any]] | pd.DataFrame",
                     save_path: str | Path | None = None,
                     title: str = "Training curves") -> None:
