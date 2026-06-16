@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+resnet18,organamnist,single_pass,1,0.51
+resnet18,organamnist,tta_all_strategies,5,4.9534
+resnet18,organamnist,tta_all_strategies,10,11.1167
+resnet18,organamnist,tta_all_strategies,20,22.9339
+resnet18,organamnist,tta_all_strategies,50,41.5813
+resnet18,organamnist,mc_dropout_T20,20,9.4119
