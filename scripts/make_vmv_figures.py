@@ -268,6 +268,9 @@ def fig5_mechanism(results_dir="./results", figures_dir="./figures") -> Path | N
     cmap = plt.get_cmap("tab10")
     colors = {d: cmap(i % 10) for i, d in enumerate(datasets)}
     MARKER = {"resnet18": ("o", "ResNet-18"), "effb0": ("s", "EfficientNet-B0")}
+    # Dodge the two models apart on x so the per-dataset circle/square pair is
+    # always visible even when their gains nearly coincide (e.g. Organ, Path).
+    DODGE = {"resnet18": -0.16, "effb0": 0.16}
 
     fig, ax = plt.subplots(figsize=(8.5, 5))
     ax.axhline(0.0, color="black", linewidth=0.9, zorder=1)
@@ -275,15 +278,16 @@ def fig5_mechanism(results_dir="./results", figures_dir="./figures") -> Path | N
     for arch, data in (("resnet18", res), ("effb0", eff)):
         marker = MARKER[arch][0]
         for ds, (nc, gain) in data.items():
-            ax.scatter(nc, gain, s=130, marker=marker, color=colors[ds],
-                       edgecolor="black", linewidth=0.7, zorder=3)
+            ax.scatter(nc + DODGE[arch], gain, s=130, marker=marker,
+                       color=colors[ds], edgecolor="black", linewidth=0.7,
+                       alpha=0.9, zorder=3)
 
     # Keep only the narrative annotation (Derma is the color-aug exception).
     if "dermamnist" in res:
         nc, gain = res["dermamnist"]
-        ax.annotate("color-aug\nexception", (nc, gain), textcoords="offset points",
-                    xytext=(10, -2), fontsize=8.5, color=colors["dermamnist"],
-                    va="center")
+        ax.annotate("color-aug\nexception", (nc + DODGE["resnet18"], gain),
+                    textcoords="offset points", xytext=(-58, 0), fontsize=8.5,
+                    color=colors["dermamnist"], va="center", ha="right")
 
     # Light "helps / hurts" zone cues on the left margin.
     ax.text(0.012, 0.99, "entropy weighting helps ↑", transform=ax.transAxes,
