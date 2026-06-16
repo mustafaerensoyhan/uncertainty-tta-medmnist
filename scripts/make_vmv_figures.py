@@ -235,69 +235,79 @@ def fig2_ece(results_dir="./results", figures_dir="./figures",
 #   Fig 5 — mechanism scatter
 # ──────────────────────────────────────────────────────────────────────────
 def fig5_mechanism(results_dir="./results", figures_dir="./figures") -> Path | None:
+    from matplotlib.lines import Line2D
+
     rdir, fdir = Path(results_dir), Path(figures_dir)
-    idx = _stability_for_arch(rdir, "resnet18")
 
-    # (n_classes, baseline_ece, entropy_ece) per dataset.
-    pts: dict[str, tuple[int, float, float]] = {}
-    if idx is not None:
-        for ds in all_dataset_keys():
-            if (ds, "baseline") in idx.index and (ds, "entropy") in idx.index:
-                pts[ds] = (get_config(ds).n_classes,
-                           float(idx.loc[(ds, "baseline"), "ece_mean"]),
-                           float(idx.loc[(ds, "entropy"), "ece_mean"]))
-    if not pts:
-        print("[fig5] seed_stability.csv missing/empty — falling back to verified "
-              "VMV-plan values.")
-        pts = dict(PLAN_FIG5)
+    def _gains(arch, fallback=None):
+        """{ds: (n_classes, baseline_ece - entropy_ece)} for one architecture."""
+        idx = _stability_for_arch(rdir, arch)
+        out: dict[str, tuple[int, float]] = {}
+        if idx is not None:
+            for ds in all_dataset_keys():
+                if (ds, "baseline") in idx.index and (ds, "entropy") in idx.index:
+                    out[ds] = (get_config(ds).n_classes,
+                               float(idx.loc[(ds, "baseline"), "ece_mean"])
+                               - float(idx.loc[(ds, "entropy"), "ece_mean"]))
+        if not out and fallback:
+            out = {d: (v[0], v[1] - v[2]) for d, v in fallback.items()}
+        return out
 
-    fig, ax = plt.subplots(figsize=(7, 5))
-    ax.axhline(0.0, color="black", linewidth=0.8)
-
-    xs = [pts[d][0] for d in pts]
-    ys = [pts[d][1] - pts[d][2] for d in pts]  # baseline - entropy (positive = helped)
-    for ds in pts:
-        nc, base, ent = pts[ds]
-        gain = base - ent
-        is_derma = ds == "dermamnist"
-        ax.scatter(nc, gain, s=90, zorder=3,
-                   color="tab:red" if is_derma else "tab:blue",
-                   edgecolor="black", linewidth=0.6,
-                   label="ResNet-18" if ds == list(pts)[0] else None)
-        lbl = SHORT_NAME.get(ds, ds)
-        if is_derma:
-            lbl += "\n(color-aug exception)"
-        ax.annotate(lbl, (nc, gain), textcoords="offset points",
-                    xytext=(7, 6), fontsize=9,
-                    color="tab:red" if is_derma else "black")
-
-    # EfficientNet-B0 overlay (hollow markers), if available.
-    eidx = _stability_for_arch(rdir, "effb0")
-    if eidx is not None:
-        n_overlay = 0
-        for ds in all_dataset_keys():
-            if (ds, "baseline") in eidx.index and (ds, "entropy") in eidx.index:
-                nc = get_config(ds).n_classes
-                gain = (float(eidx.loc[(ds, "baseline"), "ece_mean"])
-                        - float(eidx.loc[(ds, "entropy"), "ece_mean"]))
-                ax.scatter(nc, gain, s=110, facecolors="none",
-                           edgecolors="tab:green", linewidths=1.6, zorder=2,
-                           label="EfficientNet-B0" if n_overlay == 0 else None)
-                n_overlay += 1
-        missing_eff = [SHORT_NAME.get(d, d) for d in all_dataset_keys()
-                       if (d, "entropy") not in eidx.index]
-        print(f"[fig5] EfficientNet-B0 overlay: {n_overlay} dataset(s)"
-              + (f"; not available for {missing_eff}" if missing_eff else ""))
-    else:
+    res = _gains("resnet18", fallback=PLAN_FIG5)
+    eff = _gains("effb0")
+    if not eff:
         print("[fig5] WARNING: results/effb0_seed_stability.csv not found — "
-              "rendering ResNet-18 figure only.")
+              "rendering ResNet-18 points only.")
+    else:
+        missing_eff = [SHORT_NAME.get(d, d) for d in all_dataset_keys() if d not in eff]
+        print(f"[fig5] EfficientNet-B0 overlay: {len(eff)} dataset(s)"
+              + (f"; not available for {missing_eff}" if missing_eff else ""))
+
+    # Colour encodes the dataset; marker shape encodes the model.
+    datasets = sorted({*res, *eff}, key=lambda d: get_config(d).n_classes)
+    cmap = plt.get_cmap("tab10")
+    colors = {d: cmap(i % 10) for i, d in enumerate(datasets)}
+    MARKER = {"resnet18": ("o", "ResNet-18"), "effb0": ("s", "EfficientNet-B0")}
+
+    fig, ax = plt.subplots(figsize=(8.5, 5))
+    ax.axhline(0.0, color="black", linewidth=0.9, zorder=1)
+
+    for arch, data in (("resnet18", res), ("effb0", eff)):
+        marker = MARKER[arch][0]
+        for ds, (nc, gain) in data.items():
+            ax.scatter(nc, gain, s=130, marker=marker, color=colors[ds],
+                       edgecolor="black", linewidth=0.7, zorder=3)
+
+    # Keep only the narrative annotation (Derma is the color-aug exception).
+    if "dermamnist" in res:
+        nc, gain = res["dermamnist"]
+        ax.annotate("color-aug\nexception", (nc, gain), textcoords="offset points",
+                    xytext=(10, -2), fontsize=8.5, color=colors["dermamnist"],
+                    va="center")
+
+    # Light "helps / hurts" zone cues on the left margin.
+    ax.text(0.012, 0.99, "entropy weighting helps ↑", transform=ax.transAxes,
+            fontsize=8.5, color="dimgrey", va="top")
+    ax.text(0.012, 0.01, "entropy weighting hurts ↓", transform=ax.transAxes,
+            fontsize=8.5, color="dimgrey", va="bottom")
 
     ax.set_xlabel("Number of classes")
     ax.set_ylabel("ECE improvement from entropy weighting\n(baseline ECE − entropy ECE)")
     ax.set_title("Calibration mechanism: entropy weighting helps more as classes grow")
     ax.grid(alpha=0.3)
-    ax.legend(frameon=False, loc="best")
-    fig.tight_layout()
+
+    # Two legends, both outside the plot on the right.
+    ds_handles = [Line2D([], [], marker="o", linestyle="none", markersize=9,
+                         markerfacecolor=colors[d], markeredgecolor="black",
+                         label=SHORT_NAME.get(d, d)) for d in datasets]
+    model_handles = [Line2D([], [], marker=m, linestyle="none", markersize=9,
+                            markerfacecolor="lightgrey", markeredgecolor="black",
+                            label=name) for m, name in MARKER.values()]
+    leg_ds = ax.legend(handles=ds_handles, title="Dataset", frameon=False,
+                       loc="upper left", bbox_to_anchor=(1.02, 1.0))
+    ax.add_artist(leg_ds)
+    ax.legend(handles=model_handles, title="Model", frameon=False,
+              loc="upper left", bbox_to_anchor=(1.02, 0.42))
 
     out = fdir / "fig5_mechanism.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
