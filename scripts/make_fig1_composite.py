@@ -17,14 +17,22 @@ data is missing is left as a blank row with a printed message naming the exact
 file and the command that produces it. It exits non-zero only if NOTHING could
 be rendered.
 
-Usage from the repo root:
-    python -m scripts.make_fig1_composite
-    python -m scripts.make_fig1_composite --arch effb0
-    python -m scripts.make_fig1_composite --datasets pathmnist bloodmnist --n-images 3
+Two ways to run:
 
-Note: rendering requires each modality's checkpoint
-(checkpoints/{ds}_{arch}.pth) and the MedMNIST data, exactly like
-make_confidence_strips. With only some checkpoints present, only those rows fill.
+  A) From existing per-strip PDFs (no model/data needed) — recommended when the
+     strips were generated elsewhere. Lays out one full-width strip per row so
+     each stays as legible as the standalone strip:
+        python -m scripts.make_fig1_composite --from-strips figures/strip --arch effb0
+        python -m scripts.make_fig1_composite --from-strips ./strips --mode per-dataset
+     Writes per-dataset figures/fig1_{ds}[_arch].pdf and the master
+     figures/fig1_confidence_strips[_arch].pdf.
+
+  B) Render directly from the model (needs checkpoints/{ds}_{arch}.pth + MedMNIST
+     data, exactly like make_confidence_strips):
+        python -m scripts.make_fig1_composite
+        python -m scripts.make_fig1_composite --arch effb0
+
+Either way, missing modalities are skipped with a clear message.
 """
 
 from __future__ import annotations
@@ -147,6 +155,84 @@ def make_composite(args, device) -> Path | None:
     return out
 
 
+def _strip_to_image(pdf_path: Path, dpi: int = 300):
+    """Rasterise the first page of a strip PDF to an RGB numpy array."""
+    import fitz  # PyMuPDF
+    import numpy as np
+    page = fitz.open(pdf_path)[0]
+    pix = page.get_pixmap(dpi=dpi, alpha=False)
+    return np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
+
+
+def _stack_strips(rows, title, out_path, row_w=12.0, dpi=300):
+    """
+    Stack already-rendered strips as full-width rows (one strip per row), so each
+    row stays as legible as the standalone strip. `rows` = [(label, image)].
+    """
+    n = len(rows)
+    asp = rows[0][1].shape[0] / rows[0][1].shape[1]      # height/width of a strip
+    row_h = row_w * asp
+    fig, axes = plt.subplots(n, 1, figsize=(row_w, row_h * n + 0.6),
+                             squeeze=False)
+    for ax, (label, img) in zip(axes[:, 0], rows):
+        ax.imshow(img)
+        ax.set_xticks([]); ax.set_yticks([])
+        for s in ax.spines.values():
+            s.set_visible(False)
+        ax.set_ylabel(label, fontsize=11, fontweight="bold", rotation=0,
+                      ha="right", va="center", labelpad=18)
+    if title:
+        fig.suptitle(title, fontsize=13, fontweight="bold")
+    fig.tight_layout(rect=(0.04, 0, 1, 0.99 if title else 1))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+
+
+def assemble_from_strips(strip_dir, figures_dir, datasets, arch, n_images,
+                         mode="all", dpi=300) -> list[Path]:
+    """
+    Build composites from existing per-strip PDFs (no model needed). Produces
+    per-dataset figures (one modality x its samples) and/or the 4xN master, each
+    laid out one full-width strip per row. Missing strips are skipped with a note.
+    """
+    strip_dir, fdir = Path(strip_dir), Path(figures_dir)
+    sfx = "" if arch == "resnet18" else f"_{arch}"
+    arch_label = {"resnet18": "ResNet-18", "effb0": "EfficientNet-B0"}.get(arch, arch)
+    written = []
+
+    def _row(ds, k):
+        f = strip_dir / f"{ds}{sfx}_sample{k}.pdf"
+        if not f.exists():
+            print(f"  [skip] missing {f}")
+            return None
+        return (f"{SHORT_NAME.get(ds, ds)}\nsample {k}", _strip_to_image(f, dpi))
+
+    # Per-dataset: one figure per modality, its samples stacked.
+    if mode in ("all", "per-dataset"):
+        for ds in datasets:
+            rows = [r for k in range(1, n_images + 1) if (r := _row(ds, k))]
+            if not rows:
+                continue
+            out = fdir / f"fig1_{ds}{sfx}.pdf"   # figures/ root (tracked)
+            _stack_strips(rows, f"{get_config(ds).medmnist_class} — {arch_label}",
+                          out, dpi=dpi)
+            print(f"[fig1] wrote {out}  ({len(rows)} samples)")
+            written.append(out)
+
+    # Master: every modality x sample stacked.
+    if mode in ("all", "master"):
+        rows = [r for ds in datasets for k in range(1, n_images + 1)
+                if (r := _row(ds, k))]
+        if rows:
+            out = fdir / f"fig1_confidence_strips{sfx}.pdf"
+            _stack_strips(rows, f"Figure 1 — Augmentation Confidence Strips ({arch_label})",
+                          out, dpi=dpi)
+            print(f"[fig1] wrote {out}  ({len(rows)} strips)")
+            written.append(out)
+    return written
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Fig 1 composite confidence-strip assembler (VMV).")
     p.add_argument("--datasets", nargs="+", default=DEFAULT_DATASETS,
@@ -167,8 +253,23 @@ def main() -> int:
     p.add_argument("--data-root", default="./data")
     p.add_argument("--checkpoints-dir", default="./checkpoints")
     p.add_argument("--figures-dir", default="./figures")
+    p.add_argument("--from-strips", metavar="DIR", default=None,
+                   help="Assemble from existing per-strip PDFs in DIR/ (no model "
+                        "needed). Expects DIR/{ds}[_arch]_sample{k}.pdf.")
+    p.add_argument("--mode", choices=["all", "per-dataset", "master"], default="all",
+                   help="--from-strips: which composites to write (default all).")
+    p.add_argument("--dpi", type=int, default=300)
     p.add_argument("--cpu", action="store_true")
     args = p.parse_args()
+
+    if args.from_strips:
+        print(f"Fig 1 from strips in {args.from_strips} | arch={args.arch} | "
+              f"modalities: {', '.join(args.datasets)}\n")
+        written = assemble_from_strips(args.from_strips, args.figures_dir,
+                                       args.datasets, args.arch, args.n_images,
+                                       mode=args.mode, dpi=args.dpi)
+        print(f"\nDone. {len(written)} composite(s) written.")
+        return 0 if written else 1
 
     device = get_device(prefer_cuda=not args.cpu)
     print(f"Fig 1 composite on {device} | modalities: {', '.join(args.datasets)}\n")

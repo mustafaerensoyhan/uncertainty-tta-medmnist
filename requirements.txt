@@ -12,6 +12,7 @@ numpy>=1.24
 # Visualisation (Phase 3 figures, reliability diagrams, confidence strips)
 matplotlib>=3.7
 seaborn>=0.13
+PyMuPDF>=1.23   # Fig 1 composite assembler: rasterise per-strip PDFs (--from-strips)
 
 # Stats (Phase 4 significance testing)
 scipy>=1.11

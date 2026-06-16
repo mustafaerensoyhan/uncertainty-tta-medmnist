@@ -191,3 +191,24 @@ def test_fig1_composite_imports_and_skips_without_checkpoints(tmp_path):
         checkpoints_dir=str(tmp_path / "ckpts"),   # empty -> every row skipped
         figures_dir=str(tmp_path / "figs"))
     assert comp.make_composite(args, device="cpu") is None
+
+
+def test_assemble_from_strips_stacks_existing_pdfs(tmp_path):
+    """--from-strips tiles existing per-strip PDFs into per-dataset + master."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    comp = importlib.import_module("scripts.make_fig1_composite")
+
+    strip_dir = tmp_path / "strip"
+    strip_dir.mkdir()
+    for k in (1, 2):                       # fake two pathmnist strips
+        fig = plt.figure(figsize=(6, 1.5)); plt.plot([0, 1], [0, 1])
+        fig.savefig(strip_dir / f"pathmnist_sample{k}.pdf"); plt.close(fig)
+
+    out = comp.assemble_from_strips(strip_dir, tmp_path / "figs",
+                                    ["pathmnist"], "resnet18", n_images=2, mode="all")
+    names = {p.name for p in out}
+    assert "fig1_pathmnist.pdf" in names            # per-dataset
+    assert "fig1_confidence_strips.pdf" in names     # master
+    assert all(p.exists() and p.stat().st_size > 0 for p in out)
