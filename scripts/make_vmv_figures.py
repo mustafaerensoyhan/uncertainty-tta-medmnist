@@ -255,27 +255,30 @@ def fig5_mechanism(results_dir="./results", figures_dir="./figures") -> Path | N
 
     res = _gains("resnet18", fallback=PLAN_FIG5)
     eff = _gains("effb0")
-    if not eff:
-        print("[fig5] WARNING: results/effb0_seed_stability.csv not found — "
-              "rendering ResNet-18 points only.")
-    else:
-        missing_eff = [SHORT_NAME.get(d, d) for d in all_dataset_keys() if d not in eff]
-        print(f"[fig5] EfficientNet-B0 overlay: {len(eff)} dataset(s)"
-              + (f"; not available for {missing_eff}" if missing_eff else ""))
+    deit = _gains("deit_tiny")
+    for label, data, fname in (("EfficientNet-B0", eff, "effb0_seed_stability.csv"),
+                               ("DeiT-Tiny", deit, "deit_tiny_seed_stability.csv")):
+        if not data:
+            print(f"[fig5] WARNING: results/{fname} not found — {label} omitted.")
+        else:
+            missing = [SHORT_NAME.get(d, d) for d in all_dataset_keys() if d not in data]
+            print(f"[fig5] {label} overlay: {len(data)} dataset(s)"
+                  + (f"; not available for {missing}" if missing else ""))
 
     # Colour encodes the dataset; marker shape encodes the model.
-    datasets = sorted({*res, *eff}, key=lambda d: get_config(d).n_classes)
+    datasets = sorted({*res, *eff, *deit}, key=lambda d: get_config(d).n_classes)
     cmap = plt.get_cmap("tab10")
     colors = {d: cmap(i % 10) for i, d in enumerate(datasets)}
-    MARKER = {"resnet18": ("o", "ResNet-18"), "effb0": ("s", "EfficientNet-B0")}
-    # Dodge the two models apart on x so the per-dataset circle/square pair is
-    # always visible even when their gains nearly coincide (e.g. Organ, Path).
-    DODGE = {"resnet18": -0.16, "effb0": 0.16}
+    MARKER = {"resnet18": ("o", "ResNet-18"), "effb0": ("s", "EfficientNet-B0"),
+              "deit_tiny": ("^", "DeiT-Tiny")}
+    # Dodge the models apart on x so a per-dataset marker group stays visible
+    # even when their gains nearly coincide (e.g. Organ, Path).
+    DODGE = {"resnet18": -0.22, "effb0": 0.0, "deit_tiny": 0.22}
 
     fig, ax = plt.subplots(figsize=(8.5, 5))
     ax.axhline(0.0, color="black", linewidth=0.9, zorder=1)
 
-    for arch, data in (("resnet18", res), ("effb0", eff)):
+    for arch, data in (("resnet18", res), ("effb0", eff), ("deit_tiny", deit)):
         marker = MARKER[arch][0]
         for ds, (nc, gain) in data.items():
             ax.scatter(nc + DODGE[arch], gain, s=130, marker=marker,
