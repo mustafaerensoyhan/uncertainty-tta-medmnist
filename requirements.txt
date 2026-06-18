@@ -23,3 +23,4 @@ tqdm>=4.65
 
 # Development — optional but recommended
 pytest>=7.0
+timm

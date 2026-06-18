@@ -1,0 +1,24 @@
+{
+  "dataset": "bloodmnist",
+  "arch": "deit_tiny",
+  "modality": "Blood Cell Microscopy",
+  "student": "S1",
+  "task": "multi-class",
+  "seed": 0,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\bloodmnist_deit_tiny_seed0.pth",
+  "train_log_csv": "results\\bloodmnist_deit_tiny_seed0_train_log.csv",
+  "reliability_figure": "figures\\reliability\\bloodmnist_deit_tiny_seed0_baseline.png",
+  "curves_figure": "figures\\curves\\bloodmnist_deit_tiny_seed0_train_curves.png",
+  "benchmark_acc": 0.969,
+  "test_metrics": {
+    "accuracy": 0.9733995907629348,
+    "auc_roc": 0.9987897025655643,
+    "ece": 0.011812760489476873,
+    "nll": 0.08953984081745148
+  },
+  "training_time_minutes": 10.7
+}

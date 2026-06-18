@@ -1,0 +1,24 @@
+{
+  "dataset": "dermamnist",
+  "arch": "deit_tiny",
+  "modality": "Dermatoscope",
+  "student": "S2",
+  "task": "multi-class",
+  "seed": 0,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\dermamnist_deit_tiny_seed0.pth",
+  "train_log_csv": "results\\dermamnist_deit_tiny_seed0_train_log.csv",
+  "reliability_figure": "figures\\reliability\\dermamnist_deit_tiny_seed0_baseline.png",
+  "curves_figure": "figures\\curves\\dermamnist_deit_tiny_seed0_train_curves.png",
+  "benchmark_acc": 0.734,
+  "test_metrics": {
+    "accuracy": 0.8139650872817955,
+    "auc_roc": 0.9445078954828272,
+    "ece": 0.1282804906665536,
+    "nll": 0.8095738291740417
+  },
+  "training_time_minutes": 6.35
+}

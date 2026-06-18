@@ -1,0 +1,24 @@
+{
+  "dataset": "pneumoniamnist",
+  "arch": "deit_tiny",
+  "modality": "Chest X-Ray",
+  "student": "S5",
+  "task": "binary-class",
+  "seed": 0,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\pneumoniamnist_deit_tiny_seed0.pth",
+  "train_log_csv": "results\\pneumoniamnist_deit_tiny_seed0_train_log.csv",
+  "reliability_figure": "figures\\reliability\\pneumoniamnist_deit_tiny_seed0_baseline.png",
+  "curves_figure": "figures\\curves\\pneumoniamnist_deit_tiny_seed0_train_curves.png",
+  "benchmark_acc": 0.856,
+  "test_metrics": {
+    "accuracy": 0.8541666666666666,
+    "auc_roc": 0.9582785448170065,
+    "ece": 0.11810898580230197,
+    "nll": 0.7137265205383301
+  },
+  "training_time_minutes": 3.95
+}

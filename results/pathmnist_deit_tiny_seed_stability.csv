@@ -1,0 +1,12 @@
+dataset,arch,strategy,n_seeds,accuracy_mean,accuracy_std,auc_roc_mean,auc_roc_std,ece_mean,ece_std,nll_mean,nll_std
+pathmnist,deit_tiny,baseline,2,0.9359,0.0103,0.9933,0.0028,0.012,0.0017,0.2233,0.0459
+pathmnist,deit_tiny,maxprob,2,0.936,0.0096,0.9934,0.0027,0.0095,0.0034,0.2215,0.045
+pathmnist,deit_tiny,entropy,2,0.9369,0.0093,0.9935,0.0027,0.0094,0.0019,0.2201,0.044
+pathmnist,deit_tiny,variance,2,0.9368,0.0095,0.9934,0.0027,0.0094,0.0018,0.2212,0.0445
+pathmnist,deit_tiny,variance_inv,2,0.9343,0.0106,0.993,0.003,0.0258,0.0041,0.2341,0.0487
+pathmnist,deit_tiny,mc_dropout,2,0.9295,0.0106,0.9941,0.0017,0.0409,0.0047,0.2759,0.0458
+pathmnist,deit_tiny,ts_only,2,0.9297,0.0098,0.9941,0.0018,0.0385,0.0034,0.2622,0.0425
+pathmnist,deit_tiny,ts_entropy,2,0.9373,0.009,0.9936,0.0026,0.0074,0.0019,0.2126,0.0403
+pathmnist,deit_tiny,top3,2,0.937,0.0095,0.9946,0.0018,0.0365,0.0051,0.2983,0.0495
+pathmnist,deit_tiny,top5,2,0.9373,0.0105,0.9946,0.0017,0.0306,0.0029,0.2641,0.0425
+pathmnist,deit_tiny,top7,2,0.9354,0.0097,0.9945,0.0017,0.0263,0.0029,0.2447,0.0384

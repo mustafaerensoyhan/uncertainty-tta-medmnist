@@ -1,0 +1,24 @@
+{
+  "dataset": "breastmnist",
+  "arch": "deit_tiny",
+  "modality": "Breast Ultrasound",
+  "student": "S3",
+  "task": "binary-class",
+  "seed": 0,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\breastmnist_deit_tiny_seed0.pth",
+  "train_log_csv": "results\\breastmnist_deit_tiny_seed0_train_log.csv",
+  "reliability_figure": "figures\\reliability\\breastmnist_deit_tiny_seed0_baseline.png",
+  "curves_figure": "figures\\curves\\breastmnist_deit_tiny_seed0_train_curves.png",
+  "benchmark_acc": 0.864,
+  "test_metrics": {
+    "accuracy": 0.8525641025641025,
+    "auc_roc": 0.8920217209690894,
+    "ece": 0.0883413748099254,
+    "nll": 0.4244641959667206
+  },
+  "training_time_minutes": 13.94
+}
