@@ -63,6 +63,7 @@ from scripts.make_fig_signflip import build as build_signflip
 DATASETS = ["pathmnist", "dermamnist", "pneumoniamnist", "bloodmnist",
             "breastmnist", "organamnist"]
 ARCHES = ("resnet18", "effb0", "deit_tiny")
+N_STRIP_SAMPLES = 6   # samples per modality in the trust strip (match the PDFs)
 
 
 def regen():
@@ -70,7 +71,7 @@ def regen():
     # JPEG (set_title/suptitle are monkeypatched to no-ops above).
     print("fig1 (trust strips, several per modality):")
     for arch in ARCHES:
-        assemble_from_strips("figures/strip", "figures", DATASETS, arch, 3,
+        assemble_from_strips("figures/strip", "figures", DATASETS, arch, N_STRIP_SAMPLES,
                              mode="all", dpi=DPI)
     print("fig2 ECE:")
     for arch in ARCHES:
