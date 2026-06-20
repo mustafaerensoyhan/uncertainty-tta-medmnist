@@ -1,0 +1,7 @@
+arch,dataset,n,ece_single,ece_tta,diff,ci_lo,ci_hi,significant,direction
+deit_tiny,pathmnist,21540,0.0383,0.0098,-0.0284,-0.0322,-0.0236,True,TTA helps
+deit_tiny,dermamnist,6015,0.1318,0.0962,-0.0356,-0.0394,-0.0319,True,TTA helps
+deit_tiny,pneumoniamnist,1872,0.1149,0.0991,-0.0158,-0.0214,-0.0097,True,TTA helps
+deit_tiny,breastmnist,468,0.0882,0.0507,-0.0374,-0.0543,-0.0116,True,TTA helps
+deit_tiny,bloodmnist,10263,0.0134,0.005,-0.0085,-0.012,-0.0036,True,TTA helps
+deit_tiny,organamnist,53334,0.0315,0.0536,0.0221,0.0197,0.0249,True,TTA hurts

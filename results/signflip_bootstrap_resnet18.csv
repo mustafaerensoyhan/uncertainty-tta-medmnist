@@ -1,0 +1,7 @@
+arch,dataset,n,ece_single,ece_tta,diff,ci_lo,ci_hi,significant,direction
+resnet18,pathmnist,21540,0.0581,0.0203,-0.0378,-0.0421,-0.0315,True,TTA helps
+resnet18,dermamnist,6015,0.1153,0.074,-0.0413,-0.0453,-0.0374,True,TTA helps
+resnet18,pneumoniamnist,1872,0.1106,0.0861,-0.0245,-0.0298,-0.0178,True,TTA helps
+resnet18,breastmnist,468,0.0608,0.0179,-0.0429,-0.0584,-0.0118,True,TTA helps
+resnet18,bloodmnist,10263,0.0106,0.0083,-0.0023,-0.0059,0.0022,False,TTA helps
+resnet18,organamnist,53334,0.0324,0.0561,0.0237,0.021,0.0261,True,TTA hurts

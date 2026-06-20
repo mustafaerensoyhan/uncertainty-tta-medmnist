@@ -1,0 +1,19 @@
+arch,dataset,modality,single_pass_ece,tta_ece,delta_ece,ci_lo,ci_hi,significant,direction
+resnet18,pathmnist,histology,0.0581,0.0203,-0.0378,-0.0421,-0.0315,True,TTA helps
+resnet18,dermamnist,dermoscopy,0.1153,0.074,-0.0413,-0.0453,-0.0374,True,TTA helps
+resnet18,pneumoniamnist,xray,0.1106,0.0861,-0.0245,-0.0298,-0.0178,True,TTA helps
+resnet18,breastmnist,ultrasound,0.0608,0.0179,-0.0429,-0.0584,-0.0118,True,TTA helps
+resnet18,bloodmnist,microscopy,0.0106,0.0083,-0.0023,-0.0059,0.0022,False,TTA helps
+resnet18,organamnist,ct,0.0324,0.0561,0.0237,0.021,0.0261,True,TTA hurts
+effb0,pathmnist,histology,0.034,0.0337,-0.0003,-0.0049,0.0047,False,TTA helps
+effb0,dermamnist,dermoscopy,0.0834,0.0407,-0.0427,-0.0473,-0.0369,True,TTA helps
+effb0,pneumoniamnist,xray,0.0934,0.0704,-0.023,-0.0308,-0.0134,True,TTA helps
+effb0,breastmnist,ultrasound,0.0354,0.0786,0.0431,-0.0088,0.0629,False,TTA hurts
+effb0,bloodmnist,microscopy,0.01,0.0059,-0.0042,-0.0075,-0.0002,True,TTA helps
+effb0,organamnist,ct,0.0281,0.0572,0.029,0.027,0.0313,True,TTA hurts
+deit_tiny,pathmnist,histology,0.0383,0.0098,-0.0284,-0.0322,-0.0236,True,TTA helps
+deit_tiny,dermamnist,dermoscopy,0.1318,0.0962,-0.0356,-0.0394,-0.0319,True,TTA helps
+deit_tiny,pneumoniamnist,xray,0.1149,0.0991,-0.0158,-0.0214,-0.0097,True,TTA helps
+deit_tiny,breastmnist,ultrasound,0.0882,0.0507,-0.0374,-0.0543,-0.0116,True,TTA helps
+deit_tiny,bloodmnist,microscopy,0.0134,0.005,-0.0085,-0.012,-0.0036,True,TTA helps
+deit_tiny,organamnist,ct,0.0315,0.0536,0.0221,0.0197,0.0249,True,TTA hurts
