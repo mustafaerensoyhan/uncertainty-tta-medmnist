@@ -1,0 +1,24 @@
+{
+  "dataset": "pathmnist",
+  "arch": "deit_tiny",
+  "modality": "Colon Pathology (Histology)",
+  "student": "S1",
+  "task": "multi-class",
+  "seed": 123,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\pathmnist_deit_tiny_seed123.pth",
+  "train_log_csv": "results\\pathmnist_deit_tiny_seed123_train_log.csv",
+  "reliability_figure": "figures\\reliability\\pathmnist_deit_tiny_seed123_baseline.png",
+  "curves_figure": "figures\\curves\\pathmnist_deit_tiny_seed123_train_curves.png",
+  "benchmark_acc": 0.881,
+  "test_metrics": {
+    "accuracy": 0.9364902506963788,
+    "auc_roc": 0.9936380349468986,
+    "ece": 0.031082328830256717,
+    "nll": 0.2432359755039215
+  },
+  "training_time_minutes": 52.24
+}

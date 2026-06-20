@@ -1,0 +1,24 @@
+{
+  "dataset": "organamnist",
+  "arch": "deit_tiny",
+  "modality": "Abdominal CT",
+  "student": "S4",
+  "task": "multi-class",
+  "seed": 123,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "img_size": 64,
+  "checkpoint": "checkpoints\\organamnist_deit_tiny_seed123.pth",
+  "train_log_csv": "results\\organamnist_deit_tiny_seed123_train_log.csv",
+  "reliability_figure": "figures\\reliability\\organamnist_deit_tiny_seed123_baseline.png",
+  "curves_figure": "figures\\curves\\organamnist_deit_tiny_seed123_train_curves.png",
+  "benchmark_acc": 0.778,
+  "test_metrics": {
+    "accuracy": 0.9475756553043087,
+    "auc_roc": 0.99707070222546,
+    "ece": 0.03573528684349643,
+    "nll": 0.22908279299736023
+  },
+  "training_time_minutes": 38.62
+}

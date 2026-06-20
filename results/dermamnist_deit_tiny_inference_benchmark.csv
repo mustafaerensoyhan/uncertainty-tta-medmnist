@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+deit_tiny,dermamnist,single_pass,1,14.5866
+deit_tiny,dermamnist,tta_all_strategies,5,16.42
+deit_tiny,dermamnist,tta_all_strategies,10,21.4953
+deit_tiny,dermamnist,tta_all_strategies,20,29.7293
+deit_tiny,dermamnist,tta_all_strategies,50,54.1001
+deit_tiny,dermamnist,mc_dropout_T20,20,291.9737

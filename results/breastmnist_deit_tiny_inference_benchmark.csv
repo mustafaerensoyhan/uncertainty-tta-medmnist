@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+deit_tiny,breastmnist,single_pass,1,186.7979
+deit_tiny,breastmnist,tta_all_strategies,5,188.527
+deit_tiny,breastmnist,tta_all_strategies,10,193.1856
+deit_tiny,breastmnist,tta_all_strategies,20,204.3102
+deit_tiny,breastmnist,tta_all_strategies,50,225.4193
+deit_tiny,breastmnist,mc_dropout_T20,20,4472.6596

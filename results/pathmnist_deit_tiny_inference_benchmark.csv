@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+deit_tiny,pathmnist,single_pass,1,4.2466
+deit_tiny,pathmnist,tta_all_strategies,5,6.3876
+deit_tiny,pathmnist,tta_all_strategies,10,12.9742
+deit_tiny,pathmnist,tta_all_strategies,20,21.2126
+deit_tiny,pathmnist,tta_all_strategies,50,43.2609
+deit_tiny,pathmnist,mc_dropout_T20,20,83.2956

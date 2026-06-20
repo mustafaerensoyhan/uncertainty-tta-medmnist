@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+deit_tiny,organamnist,single_pass,1,1.7449
+deit_tiny,organamnist,tta_all_strategies,5,3.971
+deit_tiny,organamnist,tta_all_strategies,10,9.2418
+deit_tiny,organamnist,tta_all_strategies,20,17.1161
+deit_tiny,organamnist,tta_all_strategies,50,43.5506
+deit_tiny,organamnist,mc_dropout_T20,20,54.5449

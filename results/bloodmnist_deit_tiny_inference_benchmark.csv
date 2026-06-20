@@ -1,0 +1,7 @@
+arch,dataset,method,n_views,ms_per_image
+deit_tiny,bloodmnist,single_pass,1,8.7548
+deit_tiny,bloodmnist,tta_all_strategies,5,10.8337
+deit_tiny,bloodmnist,tta_all_strategies,10,16.1333
+deit_tiny,bloodmnist,tta_all_strategies,20,23.8676
+deit_tiny,bloodmnist,tta_all_strategies,50,48.2289
+deit_tiny,bloodmnist,mc_dropout_T20,20,174.5175
