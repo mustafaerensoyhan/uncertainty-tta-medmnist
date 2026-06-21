@@ -121,13 +121,41 @@ def _ablation_path(rdir: Path, ds: str, arch: str) -> Path:
                    else f"{ds}_{arch}_ablation_aug.csv")
 
 
+_SIGNFLIP_CACHE: dict[tuple[str, str], float] | None = None
+
+
+def _signflip_single_pass(rdir: Path) -> dict[tuple[str, str], float]:
+    """Authoritative single-pass (no-TTA) ECE per (arch, dataset) from the
+    sign-flip scatter CSV. This is the seed-pooled value used by the paired
+    bootstrap, so the fig2 dashed baseline matches the sign-flip table exactly
+    (and is immune to the phantom tagless-checkpoint ECE in {ds}_baseline.json)."""
+    global _SIGNFLIP_CACHE
+    if _SIGNFLIP_CACHE is None:
+        _SIGNFLIP_CACHE = {}
+        f = rdir / "signflip_scatter_18pts.csv"
+        if f.exists():
+            df = pd.read_csv(f)
+            for _, r in df.iterrows():
+                _SIGNFLIP_CACHE[(str(r["arch"]), str(r["dataset"]))] = float(r["single_pass_ece"])
+    return _SIGNFLIP_CACHE
+
+
 def _baseline_no_tta_ece(rdir: Path, ds: str, arch: str = "resnet18") -> float | None:
     """
-    No-TTA test ECE from the baseline JSON, or None if absent.
-    resnet18: {ds}_baseline.json ; other backbones: {ds}_{arch}_seed0_baseline.json.
+    No-TTA single-pass test ECE for the fig2 dashed baseline line.
+
+    Primary source: results/signflip_scatter_18pts.csv (single_pass_ece) — the
+    seed-pooled value, consistent with the sign-flip table. Falls back to the
+    per-backbone baseline JSON only if that CSV/row is missing. The fallback
+    deliberately avoids the tagless resnet18 {ds}_baseline.json (phantom
+    checkpoint, e.g. PathMNIST 0.011) by using the seed0 JSON for every backbone.
     """
-    f = (rdir / f"{ds}_baseline.json" if arch == "resnet18"
-         else rdir / f"{ds}_{arch}_seed0_baseline.json")
+    sp = _signflip_single_pass(rdir).get((arch, ds))
+    if sp is not None:
+        return sp
+    tag = "_seed0_baseline.json"
+    f = (rdir / f"{ds}_{arch}{tag}" if arch != "resnet18"
+         else rdir / f"{ds}{tag}")
     if not f.exists():
         return None
     try:

@@ -53,25 +53,44 @@ def _savefig(self, fname, *a, **k):
 
 Figure.savefig = _savefig
 
-from scripts.make_vmv_figures import fig2_ece, fig4_heatmap, fig5_mechanism
+from scripts.make_vmv_figures import fig2_ece, fig3_reliability, fig4_heatmap, fig5_mechanism
 from scripts.make_fig1_composite import assemble_from_strips
+from scripts.make_fig3_three_models import build as build_fig3_3m
+from scripts.make_fig_signflip import build as build_signflip
 
-DATASETS = ["pathmnist", "dermamnist", "pneumoniamnist", "bloodmnist"]
+# All six modalities; assemble_from_strips silently skips any without strip PDFs,
+# so this works for both the interim 4-modality strips and the full 6-modality set.
+DATASETS = ["pathmnist", "dermamnist", "pneumoniamnist", "bloodmnist",
+            "breastmnist", "organamnist"]
+ARCHES = ("resnet18", "effb0", "deit_tiny")
+N_STRIP_SAMPLES = 6   # samples per modality in the trust strip (match the PDFs)
 
 
 def regen():
-    print("fig1 (from strips):")
-    for arch in ("resnet18", "effb0"):
-        assemble_from_strips("figures/strip", "figures", DATASETS, arch, 3,
+    # Every builder below calls fig.savefig, which is redirected to a title-free
+    # JPEG (set_title/suptitle are monkeypatched to no-ops above).
+    print("fig1 (trust strips, several per modality):")
+    for arch in ARCHES:
+        assemble_from_strips("figures/strip", "figures", DATASETS, arch, N_STRIP_SAMPLES,
                              mode="all", dpi=DPI)
     print("fig2 ECE:")
-    for arch in ("resnet18", "effb0"):
+    for arch in ARCHES:
         fig2_ece("./results", "./figures", arch=arch)
+    print("fig3 reliability:")
+    for arch in ARCHES:
+        try:
+            fig3_reliability("./predictions", "./figures", arch=arch)
+        except Exception as e:
+            print(f"  [fig3 {arch}] skipped: {e}")
+    print("fig3 reliability (3 models):")
+    build_fig3_3m("./predictions", "./figures")
     print("fig4 heatmap:")
-    for arch in ("resnet18", "effb0"):
+    for arch in ARCHES:
         fig4_heatmap("./results", "./figures", arch=arch)
     print("fig5 mechanism:")
     fig5_mechanism("./results", "./figures")
+    print("sign-flip scatter:")
+    build_signflip("./results", "./figures")
 
 
 def crop_fig3():
@@ -102,8 +121,9 @@ def crop_fig3():
 
 
 def combine_ece():
-    """Stack the title-free ResNet/EffB0 ECE JPEGs into one combined JPEG."""
-    parts = [OUT / "fig2_ece.jpg", OUT / "fig2_ece_effb0.jpg"]
+    """Stack the title-free per-backbone ECE JPEGs into one combined JPEG."""
+    parts = [p for p in (OUT / "fig2_ece.jpg", OUT / "fig2_ece_effb0.jpg",
+                         OUT / "fig2_ece_deit_tiny.jpg") if p.exists()]
     if not all(p.exists() for p in parts):
         print("[combined] missing an ECE panel — skipped")
         return
@@ -122,8 +142,9 @@ def combine_ece():
 
 if __name__ == "__main__":
     regen()
-    print("fig3 reliability (crop title from PDF):")
-    crop_fig3()
+    if not (OUT / "fig3_reliability.jpg").exists():
+        print("fig3 reliability (fallback: crop title from PDF):")
+        crop_fig3()
     print("combined ECE:")
     combine_ece()
     print(f"\nAll JPEGs in {OUT.relative_to(ROOT)}/")
