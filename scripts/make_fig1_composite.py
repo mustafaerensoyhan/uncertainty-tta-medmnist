@@ -164,10 +164,13 @@ def _strip_to_image(pdf_path: Path, dpi: int = 300):
     return np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
 
 
-def _stack_strips(rows, title, out_path, row_w=12.0, dpi=300):
+def _stack_strips(rows, title, out_path, row_w=12.0, dpi=300, footer=None):
     """
     Stack already-rendered strips as full-width rows (one strip per row), so each
     row stays as legible as the standalone strip. `rows` = [(label, image)].
+
+    footer: optional single legend line drawn once at the bottom of the WHOLE
+            composite (the per-strip footers were removed as repetitive).
     """
     n = len(rows)
     asp = rows[0][1].shape[0] / rows[0][1].shape[1]      # height/width of a strip
@@ -183,7 +186,11 @@ def _stack_strips(rows, title, out_path, row_w=12.0, dpi=300):
                       ha="right", va="center", labelpad=18)
     if title:
         fig.suptitle(title, fontsize=13, fontweight="bold")
-    fig.tight_layout(rect=(0.04, 0, 1, 0.99 if title else 1))
+    bottom = 0.012 if footer else 0
+    fig.tight_layout(rect=(0.04, bottom, 1, 0.99 if title else 1))
+    if footer:
+        fig.text(0.5, 0.004, footer, ha="center", va="bottom", fontsize=10,
+                 color="0.25")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=dpi, bbox_inches="tight")
     plt.close(fig)

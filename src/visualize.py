@@ -208,8 +208,9 @@ def confidence_strip(views: "list", weights: np.ndarray, aug_names: "list[str]",
 
     fig, axes = plt.subplots(2, n, figsize=(n * 1.7, 3.8),
                              gridspec_kw={"height_ratios": [3, 1.6]})
-    fig.suptitle(f"Augmentation Confidence Strip — {dataset_name}",
-                 fontsize=11, fontweight="bold", y=1.03)
+    # No per-strip title or footer legend: in the composite the row already
+    # carries the dataset name, and the colour/height meaning lives in the paper
+    # caption. (dataset_name is kept in the signature for backward compatibility.)
 
     for i in range(n):
         view = views[i]
@@ -253,13 +254,6 @@ def confidence_strip(views: "list", weights: np.ndarray, aug_names: "list[str]",
             ax_bar.set_yticks([0, 1.0]); ax_bar.set_yticklabels(["0", "1×"], fontsize=7)
         else:
             ax_bar.set_yticks([])
-
-    # Self-explanatory footer: bar HEIGHT = magnitude; colour = direction only.
-    cue = ("bar height = how much the view is trusted; dashed line = equal vote "
-           "(1×).  blue = trusted more than equal, orange = down-weighted")
-    if highlight:
-        cue += f"   ·   gold = Top-{len(highlight)} kept (most confident) views"
-    fig.text(0.5, -0.03, cue, ha="center", va="top", fontsize=7.5, color="0.25")
 
     plt.tight_layout()
     if save_path:
