@@ -184,14 +184,32 @@ def confidence_strip(views: "list", weights: np.ndarray, aug_names: "list[str]",
     weights = np.asarray(weights, dtype=np.float64)
     highlight = set(int(i) for i in highlight_idx) if highlight_idx is not None else set()
     n = len(views)
-    fig, axes = plt.subplots(2, n, figsize=(n * 1.6, 3.5),
-                             gridspec_kw={"height_ratios": [3, 1.4]})
-    fig.suptitle(f"Augmentation Confidence Strip — {dataset_name}",
-                 fontsize=11, fontweight="bold", y=1.02)
+    # Show TRUST RELATIVE TO AN EQUAL VOTE: rel_i = w_i * N. rel=1.0 means "this
+    # view counts exactly as much as it would under plain averaging"; >1 = trusted
+    # more than equal, <1 = down-weighted. This reads far better than ten near-
+    # identical "0.10" labels, and the colour is anchored at 1.0 (not min-max
+    # stretched) so genuinely-uniform weights look uniform instead of noisy.
+    rel = weights * n
+    rmax = max(1.35, float(rel.max()) * 1.12)
 
-    cmap = plt.get_cmap("Blues")
-    span = weights.max() - weights.min()
-    norm_w = (weights - weights.min()) / (span + 1e-8)  # 0..1 for colour mapping
+    # Short, horizontal column labels (long aug names are unreadable rotated).
+    _ABBR = {"gaussian_noise": "noise", "color_jitter": "jitter",
+             "center_crop": "crop", "brightness": "bright", "sharpness": "sharp"}
+    labels = [_ABBR.get(nm, nm) for nm in aug_names]
+
+    # Single visual channel for magnitude = BAR HEIGHT. Colour is NOT a darkness
+    # gradient (that double-encoding was hard to read); it only flags DIRECTION:
+    # one flat colour for "trusted" (above the equal-vote line), one for
+    # "down-weighted" (below it).
+    TRUST, DISTRUST = "#3b7dd8", "#e08a3c"   # solid blue / solid orange
+
+    def _bar_color(r):
+        return TRUST if r >= 1.0 else DISTRUST
+
+    fig, axes = plt.subplots(2, n, figsize=(n * 1.7, 3.8),
+                             gridspec_kw={"height_ratios": [3, 1.6]})
+    fig.suptitle(f"Augmentation Confidence Strip — {dataset_name}",
+                 fontsize=11, fontweight="bold", y=1.03)
 
     for i in range(n):
         view = views[i]
@@ -205,34 +223,43 @@ def confidence_strip(views: "list", weights: np.ndarray, aug_names: "list[str]",
         rng = img_np.max() - img_np.min()
         img_np = (img_np - img_np.min()) / (rng + 1e-8)
 
+        kept = i in highlight
         ax_img = axes[0, i]
         is_gray = img_np.ndim == 2 or img_np.shape[-1] == 1
         ax_img.imshow(img_np.squeeze(), cmap="gray" if is_gray else None)
-        ax_img.set_title(aug_names[i], fontsize=7, rotation=30, ha="right")
-        ax_img.axis("off")
+        # Gold frame the kept thumbnails too, so the eye links image <-> bar.
+        if kept:
+            for sp in ax_img.spines.values():
+                sp.set(visible=True, edgecolor="goldenrod", linewidth=2.4)
+            ax_img.set_xticks([]); ax_img.set_yticks([])
+        else:
+            ax_img.axis("off")
+        ax_img.set_title(labels[i], fontsize=8, rotation=0, pad=3)
 
         ax_bar = axes[1, i]
-        kept = i in highlight
-        # Kept (Top-K) bars get a thick gold edge; others keep the navy edge.
-        ax_bar.bar(0, weights[i], color=cmap(0.3 + 0.7 * norm_w[i]),
-                   width=0.6, edgecolor=("gold" if kept else "navy"),
+        ax_bar.axhline(1.0, color="0.45", ls="--", lw=0.9, zorder=1)  # equal-vote ref
+        ax_bar.bar(0, rel[i], color=_bar_color(rel[i]), width=0.62,
+                   edgecolor=("goldenrod" if kept else "0.4"),
                    linewidth=(2.6 if kept else 0.5), zorder=3)
-        ax_bar.set_ylim(0, weights.max() * 1.15 + 1e-6)
+        ax_bar.set_ylim(0, rmax)
         ax_bar.set_xlim(-0.5, 0.5)
         ax_bar.set_xticks([])
-        ax_bar.text(0, weights[i] + weights.max() * 0.03, f"{weights[i]:.2f}",
-                    ha="center", va="bottom", fontsize=7,
+        ax_bar.text(0, rel[i] + rmax * 0.03, f"{rel[i]:.1f}×",
+                    ha="center", va="bottom", fontsize=7.5,
                     color=("darkgoldenrod" if kept else "black"),
                     fontweight=("bold" if kept else "normal"))
         if i == 0:
-            ax_bar.set_ylabel("weight $w_i$", fontsize=8)
+            ax_bar.set_ylabel("trust ÷ equal\nvote  ($w_i N$)", fontsize=8)
+            ax_bar.set_yticks([0, 1.0]); ax_bar.set_yticklabels(["0", "1×"], fontsize=7)
         else:
             ax_bar.set_yticks([])
 
+    # Self-explanatory footer: bar HEIGHT = magnitude; colour = direction only.
+    cue = ("bar height = how much the view is trusted; dashed line = equal vote "
+           "(1×).  blue = trusted more than equal, orange = down-weighted")
     if highlight:
-        # Tiny legend cue so the gold outline is self-explanatory in the paper.
-        fig.text(0.5, -0.02, f"gold outline = Top-{len(highlight)} kept (lowest-entropy) views",
-                 ha="center", va="top", fontsize=7, color="darkgoldenrod")
+        cue += f"   ·   gold = Top-{len(highlight)} kept (most confident) views"
+    fig.text(0.5, -0.03, cue, ha="center", va="top", fontsize=7.5, color="0.25")
 
     plt.tight_layout()
     if save_path:
