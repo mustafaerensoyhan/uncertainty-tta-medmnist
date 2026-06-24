@@ -31,10 +31,28 @@ The pipeline is inference-only and retraining-free, so it applies to an already-
 
 ## Project documents
 
-- **Final report (IEEE two-column):** [`docs/report.pdf`](docs/report.pdf)
+- **Final report (PDF):** [`docs/report.pdf`](docs/report.pdf)
 - **Presentation slides:** [`docs/presentation.pdf`](docs/presentation.pdf) (editable source: `docs/presentation.pptx`)
 - **Poster:** [`docs/poster.pdf`](docs/poster.pdf) (editable source: `docs/poster.pptx`)
 - **Original proposal:** [`docs/Research_Proposal_UncertaintyTTA_v2.pdf`](docs/Research_Proposal_UncertaintyTTA_v2.pdf)
+
+---
+
+## System pipeline
+
+One trained model flows through five stages. Everything after Stage 1 is inference-only and retraining-free:
+
+`one trained model → N augmented views → confidence-weighted fusion → calibrated prediction`
+
+| Stage | What happens | Implemented in |
+|-------|--------------|----------------|
+| 1. Train | Fine-tune ResNet-18, EfficientNet-B0, or DeiT-Tiny from ImageNet weights, resizing only the head per dataset | `scripts.train_baseline`, `src/train.py` |
+| 2. Augment | Generate N=10 views of each test image from a pool of 10 augmentation types | `src/augmentations.py` |
+| 3. Weight and fuse | Turn each view into a softmax vector, assign it a confidence weight, and take the weighted average | `src/tta.py`, `scripts.run_weighted_tta` |
+| 4. Calibrate | Fit temperature T on the validation split (L-BFGS on NLL) and rescale the logits | `src/temperature.py` |
+| 5. Evaluate | Report accuracy, AUC-ROC, ECE (10 bins), NLL, and per-image latency | `src/metrics.py`, `src/perf.py` |
+
+Stage 3 compares nine weighting strategies: the equal-weight baseline, Max-Prob, Entropy, Variance, Inverse-Variance, MC-Dropout, TS-only, and TS+Entropy, plus a Top-K entropy filter as an ablation. Temperature-scaled entropy (TS+Entropy) is the most consistent across datasets and backbones.
 
 ---
 
