@@ -5,7 +5,7 @@ A calibration-focused, modality-stratified study of test-time augmentation (TTA)
 **Course:** Real-Time Data Analytics for IoT, Final Project
 **Team:** IoT Thunders, Ontario Tech University
 **Supervisor:** Professor Khalid Elgazzar
-**Companion paper:** *When Does Test-Time Augmentation Help Calibration? A Visual, Modality-Stratified Study for Medical Image Classification*, submitted to Vision, Modeling, and Visualization (VMV) 2026. The full report is in [`docs/`](docs/).
+**Companion paper:** *When Does Test-Time Augmentation Help Calibration? A Visual, Modality-Stratified Study for Medical Image Classification*, submitted to Vision, Modeling, and Visualization (VMV) 2026 and currently under review. See [Project documents](#project-documents) below for the report, slides, and poster.
 
 ---
 
@@ -29,18 +29,59 @@ The pipeline is inference-only and retraining-free, so it applies to an already-
 
 ---
 
+## Project documents
+
+- **Final report (IEEE two-column):** [`docs/report.pdf`](docs/report.pdf)
+- **Presentation slides:** [`docs/presentation.pdf`](docs/presentation.pdf) (editable source: `docs/presentation.pptx`)
+- **Poster:** [`docs/poster.pdf`](docs/poster.pdf) (editable source: `docs/poster.pptx`)
+- **Original proposal:** [`docs/Research_Proposal_UncertaintyTTA_v2.pdf`](docs/Research_Proposal_UncertaintyTTA_v2.pdf)
+
+---
+
 ## Repository structure
 
-| Path | Contents |
-|------|----------|
-| `src/` | Core library: data loading, model builders, augmentations, fusion strategies, temperature scaling, metrics, visualization |
-| `scripts/` | Module entry points for each stage (train, standard TTA, weighted TTA, figures, statistics) |
-| `notebooks/` | Kaggle/Colab notebook for GPU runs |
-| `results/` | Metric tables and CSVs (ECE/NLL, sign-flip bootstrap, full matrix) |
-| `figures/` | Publication figures: confidence strips, reliability diagrams, heatmaps, ECE bars |
-| `tests/` | Unit tests for metrics, fusion, MC-Dropout, temperature, and significance |
-| `docs/` | Project report and supporting documents |
-| `checkpoints/`, `predictions/` | Large artifacts, gitignored and shared separately (links if needed) |
+```text
+uncertainty-tta-medmnist/
+├── src/                              # Core library (imported by every script)
+│   ├── config.py                     # Per-dataset configuration, single source of truth
+│   ├── data.py                       # MedMNIST loading and transforms
+│   ├── model.py                      # Backbone builders: ResNet-18, EfficientNet-B0, DeiT-Tiny
+│   ├── augmentations.py              # The 10 test-time augmentation types
+│   ├── tta.py                        # Per-view probabilities and fusion strategies
+│   ├── mc_dropout.py                 # MC-Dropout epistemic baseline (no retraining)
+│   ├── temperature.py                # Temperature scaling: fit T, TS-only, TS+Entropy
+│   ├── metrics.py                    # Accuracy, AUC-ROC, ECE, NLL
+│   ├── perf.py                       # Inference-time measurement (warm-up + synchronize)
+│   ├── evaluate.py                   # Runs all strategies and collects metrics
+│   ├── visualize.py                  # Reliability diagrams, curves, confidence strips
+│   └── utils.py                      # Seeding, device, checkpoint I/O
+├── scripts/                          # Entry points, run as: python -m scripts.<name>
+│   ├── train_baseline.py             # Train a baseline and log metrics
+│   ├── run_standard_tta.py           # Standard equal-weight TTA
+│   ├── run_weighted_tta.py           # 8 weighted strategies + temperature scaling
+│   ├── make_confidence_strips.py     # Augmentation Confidence Strips (lead figure)
+│   ├── make_reliability_diagrams.py  # Calibration diagrams from saved probabilities
+│   ├── significance.py               # McNemar + Wilcoxon + bootstrap CIs
+│   ├── build_full_matrix.py          # Merge per-dataset CSVs into full_matrix.csv
+│   ├── analysis_figures.py           # Modality bar charts and latency tradeoff
+│   ├── ablate_n.py                   # Accuracy and ECE vs number of views N
+│   ├── ablate_augmentations.py       # Leave-one-out per augmentation
+│   └── aggregate_seeds.py            # Multi-seed mean and standard deviation
+├── tests/                            # Unit tests: metrics, fusion, MC-Dropout, temperature, significance
+├── notebooks/                        # kaggle_baseline.ipynb for free-GPU runs
+├── results/                          # Metric tables and CSVs (committed, small)
+├── figures/                          # Publication figures (strips, reliability, heatmaps, bars)
+├── docs/                             # Report, presentation, poster, and proposal
+│   ├── report.pdf                    # Final report (IEEE two-column)
+│   ├── presentation.pdf              # Project presentation slides
+│   ├── poster.pdf                    # Project poster
+│   └── Research_Proposal_UncertaintyTTA_v2.pdf
+├── checkpoints/                      # Trained .pth files (gitignored, large)
+├── predictions/                      # Per-image .npy arrays (gitignored, large)
+├── requirements.txt
+├── LICENSE
+└── README.md
+```
 
 ---
 
@@ -139,22 +180,6 @@ Full tables and figures are in `results/` and `figures/`; the complete analysis 
 | **Mohamed Hafez** | Project proposal and mentorship; foundational proposal, guidance, and feedback. |
 
 ---
-
-## Citation
-
-If you use this work, please cite the companion paper (confirm author order against your official submission record):
-
-```bibtex
-@inproceedings{iotthunders2026tta,
-  title     = {When Does Test-Time Augmentation Help Calibration? A Visual,
-               Modality-Stratified Study for Medical Image Classification},
-  author    = {Hafez, Mohamed and Soyhan, Mustafa Eren and Ahmed, Mohamed and
-               Rajendran, Sudha and Cao, Thuy Trang and Patel, Vaidehi and
-               Elgazzar, Khalid},
-  booktitle = {Vision, Modeling, and Visualization (VMV)},
-  year      = {2026}
-}
-```
 
 ## License
 
